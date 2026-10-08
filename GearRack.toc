@@ -1,0 +1,29 @@
+## Interface: 11200
+## X-ClassicAPI-Min-Version: 1.15.16
+## X-SuperWoW-Min-Version: 2.2
+## X-NamPower-Min-Version: 4.6.2
+## Title: GearRack
+## Notes: Gear sets, trinket priority queues and persistent weapon swaps.
+## Version: 1.0.0
+## SavedVariables: GearRackDB
+## SavedVariablesPerCharacter: GearRackCharDB
+## OptionalDeps: Bagnon
+src\Bootstrap.lua
+src\Core.lua
+src\Constants.lua
+src\Events.lua
+src\Equipment.lua
+src\PoisonSwap.lua
+src\Equipment.xml
+src\Sets.xml
+src\Trinkets.lua
+src\Trinkets.xml
+src\TrinketOptions.lua
+src\TrinketOptions.xml
+src\TrinketQueues.lua
+src\TrinketQueues.xml
+src\Navigation.lua
+src\Settings.lua
+src\BarLayout.lua
+src\Minimap.lua
+src\LoadGate.lua
