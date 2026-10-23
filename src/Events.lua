@@ -87,7 +87,7 @@ GearRackUI_DefaultEvents = {
 		["script"] = "if UnitIsDead(\"mouseover\") and GameTooltipTextLeft3:GetText()==UNIT_SKINNABLE then\n  local r,g,b = GameTooltipTextLeft3:GetTextColor()\n  if r>.9 and g<.2 and b<.2 and not GEARRACK_SKIN then\n    GearRack.EquipSet() GEARRACK_SKIN=1\n  end\nelseif GEARRACK_SKIN then\n  GearRack.LoadSet() GEARRACK_SKIN=nil\nend\n--[[Equips a set when you mouseover something that can be skinned but you have insufficient skill.]]\n",
 	},
 	["Warrior:Overpower End"] = {
-		["trigger"] = "CHAT_MSG_COMBAT_SELF_MISSES",
+		["trigger"] = "GEARRACK_DODGED",
 		["delay"] = 5,
 		["script"] = "--[[Equip a set five seconds after opponent dodged: your normal weapons. ]]\nif GEARRACK_OVERPOWER==1 then\nGearRack.EquipSet()\nGEARRACK_OVERPOWER=nil\nend",
 	},
@@ -128,9 +128,9 @@ GearRackUI_DefaultEvents = {
 	},
 
 	["Warrior:Overpower Begin"] = {
-		["trigger"] = "CHAT_MSG_COMBAT_SELF_MISSES",
+		["trigger"] = "GEARRACK_DODGED",
 		["delay"] = 0,
-		["script"] = "--[[Equip a set when the opponent dodges.  Associate a heavy-hitting 2h set with this event. ]]\nlocal _,_,i = GetShapeshiftFormInfo(1)\nif string.find(arg1 or \"\",\"^You.+dodge[sd]\") and i then\nGearRack.EquipSet()\nGEARRACK_OVERPOWER=1\nend",
+		["script"] = "--[[Equip a set when the opponent dodges.  Associate a heavy-hitting 2h set with this event. ]]\nlocal _,_,i = GetShapeshiftFormInfo(1)\nif i then\nGearRack.EquipSet()\nGEARRACK_OVERPOWER=1\nend",
 	},
 	["About Town"] = {
 		["trigger"] = "PLAYER_UPDATE_RESTING",
@@ -219,11 +219,20 @@ local previousDefaults = {
 	["Priest:Spirit Tap End"]={trigger="GEARRACK_BUFFS_CHANGED",delay=0.5,script="local found=arg1[\"Interface\\\\Icons\\\\Spell_Shadow_Requiem\"]\nif GEARRACK_SPIRIT and not found then\nLoadSet() GEARRACK_SPIRIT = nil\nend\n--[[Returns to normal gear when Spirit Tap ends. Associate the same spirit set as Spirit Tap Begin.]]"},
 }
 
+-- 1.0.0 Overpower templates read chat text; 1.1.0 uses GEARRACK_DODGED from the combat log.
+local chatTextDefaults = {
+	["Warrior:Overpower End"]={trigger="CHAT_MSG_COMBAT_SELF_MISSES",delay=5,script="--[[Equip a set five seconds after opponent dodged: your normal weapons. ]]\nif GEARRACK_OVERPOWER==1 then\nGearRack.EquipSet()\nGEARRACK_OVERPOWER=nil\nend"},
+	["Warrior:Overpower Begin"]={trigger="CHAT_MSG_COMBAT_SELF_MISSES",delay=0,script="--[[Equip a set when the opponent dodges.  Associate a heavy-hitting 2h set with this event. ]]\nlocal _,_,i = GetShapeshiftFormInfo(1)\nif string.find(arg1 or \"\",\"^You.+dodge[sd]\") and i then\nGearRack.EquipSet()\nGEARRACK_OVERPOWER=1\nend"},
+}
+
 function GearRackUI_MigrateDefaultEvents()
-	for name,old in pairs(previousDefaults) do
-		local saved=GearRackDB.events[name]
-		if type(saved)=="table" and saved.script==old.script and saved.trigger==old.trigger and saved.delay==old.delay then
-			saved.script=GearRackUI_DefaultEvents[name].script
+	for _,defaults in ipairs({previousDefaults, chatTextDefaults}) do
+		for name,old in pairs(defaults) do
+			local saved=GearRackDB.events[name]
+			if type(saved)=="table" and saved.script==old.script and saved.trigger==old.trigger and saved.delay==old.delay then
+				saved.script=GearRackUI_DefaultEvents[name].script
+				saved.trigger=GearRackUI_DefaultEvents[name].trigger
+			end
 		end
 	end
 end

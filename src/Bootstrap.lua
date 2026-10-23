@@ -1,10 +1,10 @@
 -- GearRack. Engine extensions are DLLs, not addon Dependencies.
-GearRack = {version="1.0.0", enabled=false}
+GearRack = {version="1.1.0", enabled=false}
 local _,_,superMajor,superMinor=string.find(tostring(SUPERWOW_VERSION or ""),"^(%d+)%.(%d+)")
 superMajor,superMinor=tonumber(superMajor),tonumber(superMinor)
 local failure
-if type(CLASSIC_API_VERSION)~="number" or CLASSIC_API_VERSION<11600 then
-    failure="ClassicAPI 1.16.0 or newer"
+if type(CLASSIC_API_VERSION)~="number" or CLASSIC_API_VERSION<11703 then
+    failure="ClassicAPI 1.17.3 or newer"
 elseif not superMajor or superMajor<2 or (superMajor==2 and superMinor<2) then
     failure="SuperWoW 2.2 or newer"
 elseif type(GetNampowerVersion)~="function" then

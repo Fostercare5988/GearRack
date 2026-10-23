@@ -213,6 +213,15 @@ Trigger `GEARRACK_ITEMUSED`. `arg1` is the item's name, `arg2` its slot.
 if arg1 == "Insignia of the Horde" then GearRack.EquipSet() end
 ```
 
+### When your attack is dodged
+
+Trigger `GEARRACK_DODGED`. It fires when a target dodges your swing, spell or
+shot. `arg1` is that unit's GUID. The two **Warrior:Overpower** events use it.
+
+```lua
+if arg1 == UnitGUID("target") then GearRack.EquipSet() end
+```
+
 ## Tips
 
 - Start with the **Test** button and watch chat for red error lines.

@@ -1,6 +1,6 @@
 # GearRack
 
-**v1.0.0** · Gear sets, trinket priorities and weapon swaps for **WoW 1.12.1** (build 5875).
+**v1.1.0** · Gear sets, trinket priorities and weapon swaps for **WoW 1.12.1** (build 5875).
 
 - Save full or partial gear sets, give them icons and keys.
 - Swap items from an equipment bar or your character window.
@@ -13,7 +13,7 @@
 
 | Client extension | Minimum version |
 | --- | --- |
-| [ClassicAPI](https://github.com/brues-code/ClassicAPI) | 1.16.0 |
+| [ClassicAPI](https://github.com/brues-code/ClassicAPI) | 1.17.3 |
 | [SuperWoW](https://github.com/balakethelock/SuperWoW) | 2.2 |
 | [NamPower](https://github.com/Emyrk/nampower) | 4.6.2 |
 

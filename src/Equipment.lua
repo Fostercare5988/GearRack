@@ -3836,6 +3836,17 @@ function GearRackUI.CancelEvent(eventname)
 	GearRackUI.EventQueueSetName[eventname] = nil
 end
 
+-- GEARRACK_DODGED rides on the combat log (ClassicAPI 1.17+). Keep the combat-log
+-- registration while either trigger still has an event.
+local function release_trigger(trigger)
+	if trigger~="COMBAT_LOG_EVENT_UNFILTERED" or not GearRackUI.Register.GEARRACK_DODGED then
+		GearRackUI_RegisterFrame:UnregisterEvent(trigger)
+	end
+	if trigger=="GEARRACK_DODGED" and not GearRackUI.Register.COMBAT_LOG_EVENT_UNFILTERED then
+		GearRackUI_RegisterFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+	end
+end
+
 -- enables a specific eventname ("Riding","Warrior:Berserk",etc)
 function GearRackUI_EnableEvent(eventname)
 
@@ -3846,6 +3857,9 @@ function GearRackUI_EnableEvent(eventname)
 	if not GearRackUI.Register[trigger] then
 		GearRackUI_RegisterFrame:RegisterEvent(trigger)
 		GearRackUI.Register[trigger] = {}
+		if trigger=="GEARRACK_DODGED" then
+			GearRackUI_RegisterFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+		end
 	end
 	GearRackUI.Register[trigger][eventname] = 1
 end
@@ -3863,11 +3877,11 @@ function GearRackUI_DisableEvent(eventname)
 		GearRackUI.Register[trigger][eventname] = nil
 		for i in pairs(GearRackUI.Register[trigger]) do has_event=1 end
 		if not has_event then
-			GearRackUI_RegisterFrame:UnregisterEvent(trigger)
 			GearRackUI.Register[trigger] = nil
+			release_trigger(trigger)
 		end
 	else
-		GearRackUI_RegisterFrame:UnregisterEvent(trigger)
+		release_trigger(trigger)
 	end
 end
 
@@ -4016,6 +4030,20 @@ function GearRackUI_RegisterFrame_OnEvent(arg1_param, arg2_param, arg3_param)
 		ev = (type(arg1_param) == "string" and arg1_param) or arg2_param or event
 		a1 = (type(arg1_param) == "string" and (arg2_param or arg1)) or arg3_param or arg1
 		a2 = arg2
+	end
+
+	-- A swing, spell or shot of yours was dodged: arg1 is the GUID of the unit that dodged.
+	-- Swing suffix values start at arg12; SPELL_ and RANGE_ suffix values at arg15.
+	if ev=="COMBAT_LOG_EVENT_UNFILTERED" and GearRackUI.Register.GEARRACK_DODGED then
+		local missType
+		if arg2=="SWING_MISSED" then
+			missType = arg12
+		elseif arg2=="SPELL_MISSED" or arg2=="RANGE_MISSED" then
+			missType = arg15
+		end
+		if missType=="DODGE" and arg4==UnitGUID("player") then
+			GearRackUI_RegisterFrame_OnEvent("GEARRACK_DODGED", arg8)
+		end
 	end
 
 	if GearRackUI.Register[ev] then
