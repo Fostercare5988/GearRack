@@ -27,5 +27,6 @@ src\Skin.lua
 src\Navigation.lua
 src\Settings.lua
 src\BarLayout.lua
+src\SetMacros.lua
 src\Minimap.lua
 src\LoadGate.lua

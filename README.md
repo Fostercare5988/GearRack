@@ -35,6 +35,8 @@ GearRack prints a message in chat if one is missing.
 
 To make a set: open **Gear sets**, click the slots to include, type a name, pick an
 icon and press **Save**. **Bind Key** gives it a key.
+Drag a saved set (its icon, its row in the set list, or the Sets flyout) onto an
+action bar: GearRack makes a character macro `/gr equip <set>` for it.
 
 ## Example: rogue poisons by target
 

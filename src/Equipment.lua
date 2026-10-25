@@ -805,6 +805,7 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 			GearRackUI_SetCooldownFont("GearRackUIMenu"..i)
 			_G["GearRackUIMenu"..i.."Border"]:SetVertexColor(.15,.25,1,1)
 			_G["GearRackUIMenu"..i.."Border"]:Hide()
+			GearRack.AddSetMacroHandle(item)
 			GearRackUI.MaxItems = GearRackUI.MaxItems + 1
 		end
 		local icon = _G["GearRackUIMenu"..i.."Icon"]
@@ -2522,7 +2523,7 @@ function GearRackUI_Sets_Save_OnClick()
 
 	local setname = GearRackUI_Sets_Name:GetText()
 	local itemcount, itemname, itemslot = 0
-	local oldkey, oldkeyindex
+	local oldkey, oldkeyindex, oldmacro
 
 	GearRackUI_Sets_Name:ClearFocus()
 
@@ -2536,9 +2537,10 @@ function GearRackUI_Sets_Save_OnClick()
 			-- grab old key binding before recreating set
 			oldkey = GearRackDB.sets[user].Sets[setname].key
 			oldkeyindex = GearRackDB.sets[user].Sets[setname].keyindex
+			oldmacro = GearRackDB.sets[user].Sets[setname].macro
 		end
 		GearRackEngine.ForgetSetUndo(setname)
-		GearRackDB.sets[user].Sets[setname] = { icon=GearRackUI.SelectedIcon, key=oldkey, keyindex=oldkeyindex }
+		GearRackDB.sets[user].Sets[setname] = { icon=GearRackUI.SelectedIcon, key=oldkey, keyindex=oldkeyindex, macro=oldmacro }
 		for i=0,19 do
 			if GearRackUI.SetBuild[i]==1 and not (twoHand and i==17) then
 				GearRackDB.sets[user].Sets[setname][i] = {}
@@ -2552,6 +2554,7 @@ function GearRackUI_Sets_Save_OnClick()
 		GearRackDB.sets[user].Sets[setname].hide = GearRackUI_Sets_HideSet:GetChecked()
 		GearRackDB.sets[user].Sets[setname].showhelm = GearRackUI_ShowHelm.tristate
 		GearRackDB.sets[user].Sets[setname].showcloak = GearRackUI_ShowCloak.tristate
+		GearRack.UpdateSetMacro(setname)
 	end
 	validate_set_buttons()
 end
@@ -2735,6 +2738,8 @@ function GearRackUI_Sets_Tooltip(setname)
 		end
 		if this and this==GearRackUIInv20 then
 			GameTooltip:AddLine("Right-click: gear-set editor",ACTION[1],ACTION[2],ACTION[3])
+		elseif this and this.gearRackDrag then
+			GameTooltip:AddLine("Drag: action bar",ACTION[1],ACTION[2],ACTION[3])
 		end
 		GameTooltip:Show()
 	end
@@ -2826,6 +2831,7 @@ function GearRackUI_Sets_Remove_OnClick()
 
 	if GearRackDB.sets[user].Sets[GearRackUI.SelectedName] then
 		unbind_keys(GearRackUI.SelectedName)
+		GearRack.DeleteSetMacro(GearRackUI.SelectedName)
 		GearRackEngine.ForgetSetUndo(GearRackUI.SelectedName)
 		GearRackDB.sets[user].Sets[GearRackUI.SelectedName] = nil
 		if GearRackDB.sets[user].CurrentSet==GearRackUI.SelectedName then GearRackDB.sets[user].CurrentSet=nil end

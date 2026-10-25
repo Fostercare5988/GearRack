@@ -109,4 +109,5 @@ function GearRack.CreateSettings()
     GearRack.CreateBarLayout()
     GearRack.CreateNavigation()
     GearRack.CreateMinimapButtons()
+    GearRack.CreateSetMacroHandles()
 end

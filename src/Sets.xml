@@ -1008,14 +1008,14 @@ end
 											<OnLoad>
 if GearRack.enabled then
 
-												this:SetText("GearRack v"..GearRackUI_Version.."\n"..GearRackUIText.HELP)
+												this:SetText("GearRack v"..GearRack.version.."\n"..GearRackUIText.HELP)
 
 end
 </OnLoad>
 											<OnShow>
 if GearRack.enabled then
 
-												this:SetText("GearRack v"..GearRackUI_Version.."\n"..GearRackUIText.HELP)
+												this:SetText("GearRack v"..GearRack.version.."\n"..GearRackUIText.HELP)
 
 end
 </OnShow>
