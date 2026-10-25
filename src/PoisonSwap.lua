@@ -3,8 +3,6 @@ if not GearRack.enabled then return end
 -- Swap between identical weapons carrying different temporary enchants.
 -- Called from a macro; no bag-position or item-GUID state is persisted.
 
-if not GearRackEngine then return end
-
 local function poison_swap_message(message)
 	DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00GearRack Poison Swap:|r " .. message)
 end

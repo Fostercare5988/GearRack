@@ -56,4 +56,4 @@ Poison swapping chooses an identical carried weapon with a different active temp
 
 ## Resets
 
-**Reset Bar** retains saved sets and enabled buttons. `/gr reset events` restores bundled automation and removes custom event definitions. `/gr trinkets reset` confirms clearing trinket options, positions, priorities, profiles and holds, then reloads. Equipment settings and sets remain.
+**Reset Bar** retains saved sets and enabled buttons. `/gr reset events` asks, then restores the included events and deletes your own. `/gr trinkets reset` confirms clearing trinket options, positions, priorities, profiles and holds, then reloads. Equipment settings and sets remain.

@@ -69,10 +69,6 @@ function GearRackTrinkets.QueueInit()
 	GearRackTrinkets_SortKeepEquippedText:SetText("Pause Queue")
 	UI.Color(GearRackTrinkets_SortKeepEquippedText,"text")
 	GearRackTrinkets.ReflectQueueEnabled()
-	GearRackTrinkets.UpdateCombatQueue()
-
-
-	GearRackCharDB.queues.Profiles = GearRackCharDB.queues.Profiles or {}
 	GearRackTrinkets.ValidateProfile()
 end
 
@@ -185,9 +181,9 @@ function GearRackTrinkets.SortTooltip()
 		GameTooltip:SetHyperlink(itemLink)
 		GameTooltip:Show()
 	elseif id==0 then
-		GearRackTrinkets.OnTooltip("Stop Queue Here","Trinkets below this line are never put on automatically. Useful for trinkets you only want by hand (Burst of Knowledge, Second Wind).")
+		GearRackTrinkets.OnTooltip("Stop queue here","Trinkets below this line are only put on by hand.")
 	elseif id then
-		GearRackTrinkets.OnTooltip("Item "..tostring(id),"Item information is not available yet.")
+		GearRackTrinkets.OnTooltip("Item "..tostring(id),"Item details not loaded yet.")
 	end
 end
 
@@ -248,7 +244,7 @@ function GearRackTrinkets.SortValidate()
 			offset = (selected==1) and 0 or (parent:GetValue() - (parent:GetHeight() / 2))
 			parent:SetValue(offset)
 			PlaySound("UChatScrollButton")
-		elseif selected >= (idx+10) then
+		elseif selected >= (idx+9) then
 			offset = (selected==#list) and GearRackTrinkets_SortScroll:GetVerticalScrollRange() or (parent:GetValue() + (parent:GetHeight() / 2))
 			parent:SetValue(offset)
 			PlaySound("UChatScrollButton");
@@ -362,7 +358,7 @@ local function ready_carried_trinket(id,slot)
 	for _,entry in ipairs(GearRack.ByID[tonumber(id)] or {}) do
 		if entry.equipLoc=="INVTYPE_TRINKET" and not reserved_for_other_slot(entry,slot)
 			and C_PlayerInfo.CanUseItem(entry.baseID) then
-			if entry.guid and C_Item.GetItemGUID({bagID=entry.bag,slotIndex=entry.slot})==entry.guid then
+			if entry.guid and GearRack.BagGUID(entry.bag,entry.slot)==entry.guid then
 				if GearRackTrinkets.TrinketNearReady(entry.bag,entry.slot) then return entry end
 			else
 				GearRack.InvalidateBag(entry.bag)
@@ -443,9 +439,8 @@ end
 -- some examples:
 -- GearRackTrinkets.SetQueue(1,"PAUSE") -- if queue is going, pause it
 -- GearRackTrinkets.SetQueue(1,"RESUME") -- if queue is paused, resume it
--- GearRackTrinkets.SetQueue(1,"SORT","Earthstrike","Insignia of the Alliance","Diamond Flask") -- set sort
--- GearRackTrinkets.SetQueue(0,"SORT","Lifestone","Darkmoon Card: Heroism") -- set sort for trinket 0
--- GearRackTrinkets.SetQueue(1,"SORT","Pvp Profile") -- note you can replace list with a profile name
+-- GearRackTrinkets.SetQueue(1,"SORT","Trinket A","Trinket B") -- set sort by exact names
+-- GearRackTrinkets.SetQueue(1,"SORT","PvP") -- or load a profile by name
 -- (a "stop the queue" is assumed at the end of the list)
 function GearRackTrinkets.SetQueue(which,...)
 	local errorstub = "|cFFBBBBBBGearRack:|cFFFFFFFF "
@@ -524,19 +519,6 @@ end
 
 --[[ Profiles ]]
 
--- add="add" or "remove" to add or remove "frame" from UISpecialFrames
-function GearRackTrinkets.Escable(frame,add)
-	local found
-	for i in pairs(UISpecialFrames) do
-		found = found or (UISpecialFrames[i]==frame and i)
-	end
-	if not found and add=="add" then
-		table.insert(UISpecialFrames,frame)
-	elseif found and add=="remove" then
-		table.remove(UISpecialFrames,found)
-	end
-end
-
 -- shows profile if show non-nil. GearRackTrinkets_ProfilesFrame has an OnHide that calls this with nil
 function GearRackTrinkets.ShowProfiles(show)
 	local normalTexture = GearRackTrinkets_Profiles:GetNormalTexture()
@@ -546,15 +528,15 @@ function GearRackTrinkets.ShowProfiles(show)
 		GearRackTrinkets_ProfilesFrame:Show()
 		normalTexture:SetTexCoord(.875,1,.25,.375)
 		pushedTexture:SetTexCoord(.75,.875,.25,.375)
-		GearRackTrinkets.Escable("GearRackTrinkets_ProfilesFrame","add")
-		GearRackTrinkets.Escable("GearRackTrinkets_OptFrame","remove")
+		GearRack.SetEscapable("GearRackTrinkets_ProfilesFrame",true)
+		GearRack.SetEscapable("GearRackTrinkets_OptFrame",false)
 	else
 		GearRackTrinkets_SortListFrame:Show()
 		GearRackTrinkets_ProfilesFrame:Hide()
 		pushedTexture:SetTexCoord(.875,1,.25,.375)
 		normalTexture:SetTexCoord(.75,.875,.25,.375)
-		GearRackTrinkets.Escable("GearRackTrinkets_ProfilesFrame","remove")
-		GearRackTrinkets.Escable("GearRackTrinkets_OptFrame","add")
+		GearRack.SetEscapable("GearRackTrinkets_ProfilesFrame",false)
+		GearRack.SetEscapable("GearRackTrinkets_OptFrame",true)
 	end
 end
 
@@ -682,7 +664,4 @@ function GearRackTrinkets.LoadProfile(which,idx)
 	end
 	GearRackTrinkets_ProfilesFrame:Hide()
 	GearRackTrinkets.OpenSort(which)
-	if GearRackDB.trinketOptions.HideOnLoad=="ON" then
-		GearRackTrinkets_OptFrame:Hide()
-	end
 end

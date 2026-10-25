@@ -176,24 +176,6 @@ end
 							</Anchor>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name="GearRackTrinkets_OptShowTooltips" inherits="GearRackTrinkets_CheckButtonTemplate">
-						<Anchors>
-							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptShowHotKeys" relativePoint="BOTTOMLEFT">
-								<Offset>
-									<AbsDimension x="0" y="0"/>
-								</Offset>
-							</Anchor>
-						</Anchors>
-					</CheckButton>
-					<CheckButton name="GearRackTrinkets_OptTooltipFollow" inherits="GearRackTrinkets_CheckButtonTemplate">
-						<Anchors>
-							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptShowTooltips" relativePoint="BOTTOMLEFT">
-								<Offset>
-									<AbsDimension x="16" y="0"/>
-								</Offset>
-							</Anchor>
-						</Anchors>
-					</CheckButton>
 					<CheckButton name="GearRackTrinkets_OptKeepDocked" inherits="GearRackTrinkets_CheckButtonTemplate">
 						<Anchors>
 							<Anchor point="TOPLEFT" relativePoint="TOP">
@@ -208,29 +190,9 @@ end
 							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptKeepDocked" relativePoint="BOTTOMLEFT"/>
 						</Anchors>
 					</CheckButton>
-					<CheckButton name="GearRackTrinkets_OptMenuOnShift" inherits="GearRackTrinkets_CheckButtonTemplate">
-						<Anchors>
-							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptKeepOpen" relativePoint="BOTTOMLEFT"/>
-						</Anchors>
-					</CheckButton>
-					<CheckButton name="GearRackTrinkets_OptNotify" inherits="GearRackTrinkets_CheckButtonTemplate">
-						<Anchors>
-							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptMenuOnShift" relativePoint="BOTTOMLEFT"/>
-						</Anchors>
-					</CheckButton>
-					<CheckButton name="GearRackTrinkets_OptNotifyThirty" inherits="GearRackTrinkets_CheckButtonTemplate">
-						<Anchors>
-							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptNotify" relativePoint="BOTTOMLEFT"/>
-						</Anchors>
-					</CheckButton>
-					<CheckButton name="GearRackTrinkets_OptNotifyChatAlso" inherits="GearRackTrinkets_CheckButtonTemplate">
-						<Anchors>
-							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptNotifyThirty" relativePoint="BOTTOMLEFT"/>
-						</Anchors>
-					</CheckButton>
 					<CheckButton name="GearRackTrinkets_OptSetColumns" inherits="GearRackTrinkets_CheckButtonTemplate">
 						<Anchors>
-							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptNotifyChatAlso" relativePoint="BOTTOMLEFT"/>
+							<Anchor point="TOPLEFT" relativeTo="GearRackTrinkets_OptKeepOpen" relativePoint="BOTTOMLEFT"/>
 						</Anchors>
 					</CheckButton>
 

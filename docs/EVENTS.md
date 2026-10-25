@@ -10,7 +10,7 @@ Mount, Town, Plaguelands and Travel Form change gear when you enter or leave the
 
 Included class, item, zone and chat patterns assume an English client. Custom server content may need an edited event.
 
-**Reset Events** or `/gr reset events` restores the included events and removes custom definitions.
+**Reset events** or `/gr reset events` asks, then restores the included events and deletes your own. Sets keep their restore data.
 
 ## Writing a script
 

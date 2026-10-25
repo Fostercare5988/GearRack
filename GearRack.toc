@@ -5,10 +5,9 @@
 ## X-NamPower-Min-Version: 4.6.2
 ## Title: |cffff9e38GearRack|r |cffffd6a8[Fostercare5988]|r
 ## Notes: Gear sets, trinket priority queues and persistent weapon swaps.
-## Version: 1.1.0
+## Version: 1.0.0
 ## SavedVariables: GearRackDB
 ## SavedVariablesPerCharacter: GearRackCharDB
-## OptionalDeps: Bagnon
 src\Bootstrap.lua
 src\ForgeUI.lua
 src\Core.lua

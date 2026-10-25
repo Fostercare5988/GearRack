@@ -93,9 +93,7 @@ end
 function GearRack.CreateNavigation()
     pages={GearRackBarLayout,GearRackUI_SetsFrame,GearRackTrinkets_OptFrame}
     for _,frame in ipairs(pages) do
-        local found=false
-        for _,name in ipairs(UISpecialFrames) do if name==frame:GetName() then found=true;break end end
-        if not found then table.insert(UISpecialFrames,frame:GetName()) end
+        GearRack.SetEscapable(frame:GetName(),true)
         frame:HookScript("OnShow",function(self)
             if not changing and active~=self then GearRack.ShowMenuPage(self,nil,true) end
         end)
@@ -130,12 +128,10 @@ function GearRack.CreateNavigation()
     hold:SetScript("OnEnter",function()
         GameTooltip:SetOwner(this,"ANCHOR_RIGHT")
         GameTooltip:AddLine("Keep manual trinket choices",UI.heading[1],UI.heading[2],UI.heading[3])
-        GameTooltip:AddLine("A trinket you pick yourself, or one a gear set puts on, pauses that slot's automatic order until you resume it. Slots a set leaves out are not affected.",1,1,1,true)
+        GameTooltip:AddLine("A trinket you or a gear set puts on pauses that slot's queue until you resume it.",1,1,1,true)
         GameTooltip:Show()
     end)
     hold:SetScript("OnLeave",function() GameTooltip:Hide() end)
-    GearRackTrinkets_OptShowTooltips:ClearAllPoints()
-    GearRackTrinkets_OptShowTooltips:SetPoint("TOPLEFT",hold,"BOTTOMLEFT",4,0)
     UI.Color(GearRackShowTrinketsText,"text")
     UI.Color(GearRackHoldTrinketsText,"text")
     options:HookScript("OnShow",function()

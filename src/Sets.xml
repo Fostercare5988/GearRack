@@ -937,7 +937,7 @@ end
 							<OnClick>
 if GearRack.enabled then
 
-								GearRackUI_SlashHandler("reset events")
+								GearRackUI_ConfirmResetEvents()
 
 end
 </OnClick>

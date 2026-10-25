@@ -2,10 +2,6 @@ if not GearRack.enabled then return end
 
 -- Equipment bar, set editor and shared transaction engine.
 
---[[ SavedVariables ]]--
-
-GearRackDB.bars = {} -- per-user bar settings (position, orientation, scale, locked status, bar contents)
-
 GearRackUI.DefaultSettings = {			-- These settings are for all users:
 	TooltipFollow = "OFF",		-- whether tooltip shows at pointer or default position
 	Soulbound = "OFF",			-- whether menu limits items to soulbound only
@@ -32,11 +28,6 @@ GearRackUI.DefaultSettings = {			-- These settings are for all users:
 	CharSheetMenu = "ON",		-- whether to display swap flyout when hovering character sheet slots
 }
 
--- all event scripts are stored globally in this saved variable.  Defaults are in Events.lua
-GearRackDB.events = {}
-
-GearRackUI_Version = GearRack.version
-
 --[[ Local Variables ]]--
 local _G = _G or getfenv(0)
 local _, ns = ...
@@ -44,76 +35,8 @@ local UI = ns.UI
 -- Tooltip lines that name a click action use the ForgeUI heading color.
 local ACTION = UI.heading
 
-local QUALITY_BORDER_BACKDROP = {
-	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-	tile = true,
-	tileSize = 8,
-	edgeSize = 16,
-	insets = { left = 0, right = 0, top = 0, bottom = 0 }
-}
-
--- High-luminance, high-contrast palette for clear distinction (Green vs Blue vs Purple)
-local ENHANCED_QUALITY_COLORS = {
-	[2] = { r = 0.05, g = 1.00, b = 0.15 }, -- Vibrant Emerald Green
-	[3] = { r = 0.00, g = 0.70, b = 1.00 }, -- Radiant Electric Sky Blue
-	[4] = { r = 0.85, g = 0.20, b = 1.00 }, -- Vivid Neon Purple / Magenta
-	[5] = { r = 1.00, g = 0.55, b = 0.00 }, -- Flaming Orange
-	[6] = { r = 0.95, g = 0.85, b = 0.40 }, -- Radiant Gold
-}
-
-local function GetBorderQualityColor(quality)
-	local color = ENHANCED_QUALITY_COLORS[quality]
-	if color then
-		return color.r, color.g, color.b
-	end
-	return GetItemQualityColor(quality)
-end
-
-local function get_or_create_quality_border(btn)
-	if not btn then return nil end
-	if not btn.qualityBorder then
-		local name = btn:GetName()
-		local qBorder = CreateFrame("Frame", name and (name .. "QualityBorder") or nil, btn)
-		qBorder:SetPoint("TOPLEFT", btn, "TOPLEFT", -2, 2)
-		qBorder:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 2, -2)
-		qBorder:SetBackdrop(QUALITY_BORDER_BACKDROP)
-		qBorder:EnableMouse(false)
-		if btn.GetFrameLevel then
-			qBorder:SetFrameLevel(btn:GetFrameLevel() + 1)
-		end
-		qBorder:Hide()
-		btn.qualityBorder = qBorder
-	end
-	return btn.qualityBorder
-end
-
-local function apply_inv_quality_border(invBtn, invSlotID)
-	if not invBtn then return end
-	local qBorder = get_or_create_quality_border(invBtn)
-	if not qBorder then return end
-
-	if invSlotID and invSlotID ~= 20 then
-		local q = GetInventoryItemQuality("player", invSlotID)
-		if not q then
-			local link = GetInventoryItemLink("player", invSlotID)
-			if link then
-				local _, _, itemQ = GetItemInfo(link)
-				q = itemQ
-			end
-		end
-
-		if type(q) == "number" and q > 1 then
-			local r, g, b = GetBorderQualityColor(q)
-			qBorder:SetBackdropBorderColor(r, g, b, 1.0)
-			if invBtn.GetFrameLevel then
-				qBorder:SetFrameLevel(invBtn:GetFrameLevel() + 1)
-			end
-			qBorder:Show()
-			return
-		end
-	end
-
-	qBorder:Hide()
+local function apply_inv_quality_border(button, slot)
+	GearRack.SetQualityBorder(button, slot ~= 20 and GetInventoryItemQuality("player", slot), 16)
 end
 
 local function get_or_create_enchant_overlay(btn)
@@ -123,9 +46,7 @@ local function get_or_create_enchant_overlay(btn)
 		local overlay = CreateFrame("Frame", name and (name .. "EnchantOverlay") or nil, btn)
 		overlay:SetAllPoints(btn)
 		overlay:EnableMouse(false)
-		if btn.GetFrameLevel then
-			overlay:SetFrameLevel(btn:GetFrameLevel() + 3)
-		end
+		overlay:SetFrameLevel(btn:GetFrameLevel() + 3)
 
 		local iconFrame = CreateFrame("Frame", nil, overlay)
 		iconFrame:SetWidth(14)
@@ -179,58 +100,19 @@ local function format_enchant_duration(expirationMs, charges)
 	return text, r, g, b
 end
 
-local function get_location_enchant_name(location)
-	if not GearRackUI_ItemTooltip or not location then return nil end
-	GearRackUI_ItemTooltip:ClearLines()
-	if location.equipmentSlotIndex then
-		GearRackUI_ItemTooltip:SetInventoryItem("player", location.equipmentSlotIndex)
-	elseif location.bagID and location.slotIndex then
-		GearRackUI_ItemTooltip:SetBagItem(location.bagID, location.slotIndex)
-	else
-		return nil
-	end
-	local numLines = GearRackUI_ItemTooltip:NumLines()
-	for i = 2, numLines do
-		local line = _G["GearRackUI_ItemTooltipTextLeft" .. i]
-		if line then
-			local text = line:GetText()
-			if text then
-				local _, _, name = string.find(text, "^(.-)%s*%(%s*%d+")
-				if name and name ~= "" then
-					return name
-				end
-			end
-		end
-	end
-	return nil
-end
-
-local function get_enchant_texture(info, location)
+local function get_enchant_texture(info)
 	local name = info and info.name
-	if not name and location then
-		name = get_location_enchant_name(location)
-	end
-	if not name and info and info.spellID and C_Spell and C_Spell.GetSpellName then
-		name = C_Spell.GetSpellName(info.spellID)
-	end
-
 	if name then
+		-- UNVERIFIED: test in game. Poisons whose spell has no icon of its own.
 		local lower = string.lower(name)
 		if string.find(lower, "dissolvent") then
-			return "Interface\\Icons\\Spell_Nature_SlowPoison"
+			return "Interface\Icons\Spell_Nature_SlowPoison"
 		elseif string.find(lower, "corrosive") then
-			return "Interface\\Icons\\INV_Corrosive_01"
+			return "Interface\Icons\INV_Corrosive_01"
 		end
 	end
-
-	if info and info.spellID and C_Spell and C_Spell.GetSpellTexture then
-		local texture = C_Spell.GetSpellTexture(info.spellID)
-		if texture then
-			return texture
-		end
-	end
-
-	return "Interface\\Icons\\INV_Misc_QuestionMark"
+	return info and info.spellID and C_Spell.GetSpellTexture(info.spellID)
+		or "Interface\Icons\INV_Misc_QuestionMark"
 end
 
 -- Resolved icon art is static by enchant ID; remaining time/charges stay live.
@@ -281,7 +163,7 @@ local function update_enchant(btn, location, equippedState)
 	end
 	local texture = enchantTextures[enchantID]
 	if not texture then
-		texture = get_enchant_texture(C_Item.GetEnchantInfo(enchantID), location)
+		texture = get_enchant_texture(C_Item.GetEnchantInfo(enchantID))
 		if enchantID and texture ~= "Interface\\Icons\\INV_Misc_QuestionMark" then
 			enchantTextures[enchantID] = texture
 		end
@@ -313,9 +195,11 @@ local function update_equipped_enchant(slotID, btn, equippedState)
 	end
 end
 
+local menuEnchantLocation = {}
 local function update_menu_weapon_enchant(btn, baggedItem)
 	if baggedItem and baggedItem.bag and baggedItem.slot then
-		update_enchant(btn, {bagID=baggedItem.bag, slotIndex=baggedItem.slot})
+		menuEnchantLocation.bagID, menuEnchantLocation.slotIndex = baggedItem.bag, baggedItem.slot
+		update_enchant(btn, menuEnchantLocation)
 	elseif btn and btn.enchantOverlay then
 		btn.enchantOverlay:Hide()
 	end
@@ -332,7 +216,7 @@ local GearRackUIOpt_Defaults = {
 	Visible = "ON"				-- whether the bar should be drawn on the screen
 }
 
-local user = "default" -- character and realm, defined at PLAYER_LOGIN
+local user -- GearRack.CharacterKey(), set at PLAYER_LOGIN
 
 GearRackUI = GearRackUI or {}
 
@@ -348,13 +232,10 @@ GearRackUI.TooltipType = nil -- "BAG" or "INVENTORY"
 GearRackUI.TooltipBag = nil -- bag number
 GearRackUI.TooltipSlot = nil -- bag or inventory slot number
 
-GearRackUI.CurrentTime = GetTime()
-
 GearRackUI.MainDock = "" -- "TOPLEFT" "BOTTOMRIGHT" etc
 GearRackUI.MenuDock = ""
 
-GearRackUI.Queue = {} -- [slot]="ItemName" if an item in queue, ie [13]="Arcanite Dragonling", [slot]=nil for no item in queue
-GearRackUI.NotifyList = {} -- ["item name"] = { bag=0-4, slot=1-x, inv=0-19, hadcooldown=true/nil }
+GearRackUI.NotifyList = {} -- [itemID] = { name=, bag=0-4, slot=1-x, inv=0-19, hadcooldown=true/nil }
 GearRackUI.AmmoCounts = {} -- ["Heavy Shot"]=200, ["Thorium Arrow"]=982, etc
 GearRackUI.TrinketsPaired = false -- true if the two trinkets are next to each other
 
@@ -384,7 +265,6 @@ GearRackUI.OptInfo = {
 	["GearRackUI_Opt_Soulbound"] = { text=GearRackUIText.OPT_SOULBOUND_TEXT, tooltip=GearRackUIText.OPT_SOULBOUND_TOOLTIP, type="Check", info="Soulbound" },
 	["GearRackUI_Opt_Bindings"] = { text=GearRackUIText.OPT_BINDINGS_TEXT, tooltip=GearRackUIText.OPT_BINDINGS_TOOLTIP, type="Check", info="Bindings" },
 	["GearRackUI_Opt_MenuShift"] = { text=GearRackUIText.OPT_MENUSHIFT_TEXT, tooltip=GearRackUIText.OPT_MENUSHIFT_TOOLTIP, type="Check", info="MenuShift" },
-	["GearRackUI_Opt_Close"] = { text=GearRackUIText.OPT_CLOSE_TEXT, tooltip=GearRackUIText.OPT_CLOSE_TOOLTIP },
 	["GearRackUI_InvFrame_Resize"] = { text=GearRackUIText.INVFRAME_RESIZE_TEXT, tooltip=GearRackUIText.INVFRAME_RESIZE_TOOLTIP },
 	["GearRackUI_Opt_ShowEmpty"] = { text=GearRackUIText.OPT_SHOWEMPTY_TEXT, tooltip=GearRackUIText.OPT_SHOWEMPTY_TOOLTIP, type="Check", info="ShowEmpty" },
 	["GearRackUI_Opt_FlipMenu"] = { text=GearRackUIText.OPT_FLIPMENU_TEXT, tooltip=GearRackUIText.OPT_FLIPMENU_TOOLTIP, type="Check", info="FlipMenu" },
@@ -478,46 +358,11 @@ GearRackUI.Indexes = {
 	[19]= { name=INVTYPE_TABARD, paperdoll_slot="CharacterTabardSlot", ignore_soulbound=1, INVTYPE_TABARD=1 }
 }
 
--- "add" or "remove" a frame from UISpecialFrames
-local function make_escable(frame,add)
-	local found
-	for i in pairs(UISpecialFrames) do
-		if UISpecialFrames[i]==frame then
-			found = i
-		end
-	end
-	if not found and add=="add" then
-		table.insert(UISpecialFrames,frame)
-	elseif found and add=="remove" then
-		table.remove(UISpecialFrames,found)
-	end
-end
-
-
--- dock-dependant offset and directions: MainDock..MenuDock
--- x/yoff   = offset MenuFrame is positioned to InvFrame
--- x/ydir   = direction items are added to menu
--- x/ystart = starting offset when building a menu, relativePoint MenuDock
--- mx/y     = offset MenuFrame is positioned to contents of InvFrame
-local dock_stats = { ["TOPRIGHTTOPLEFT"] =		 { xoff=-4, yoff=0,  xdir=1,  ydir=-1, xstart=8,   ystart=-8,  mx=3,  my=8 },
-					 ["BOTTOMRIGHTBOTTOMLEFT"] = { xoff=-4, yoff=0,  xdir=1,  ydir=1,  xstart=8,   ystart=44,  mx=3,  my=-8 },
-					 ["TOPLEFTTOPRIGHT"] =		 { xoff=4,  yoff=0,  xdir=-1, ydir=-1, xstart=-44, ystart=-8,  mx=-2, my=8 },
-					 ["BOTTOMLEFTBOTTOMRIGHT"] = { xoff=4,  yoff=0,  xdir=-1, ydir=1,  xstart=-44, ystart=44,  mx=-2, my=-8 },
-					 ["TOPRIGHTBOTTOMRIGHT"] =   { xoff=0,  yoff=-4, xdir=-1, ydir=1,  xstart=-44,  ystart=44, mx=8,  my=3 },
-					 ["BOTTOMRIGHTTOPRIGHT"] =   { xoff=0,  yoff=4,	 xdir=-1, ydir=-1, xstart=-44,  ystart=-8, mx=8,  my=-3 },
-					 ["TOPLEFTBOTTOMLEFT"] =	 { xoff=0,  yoff=-4, xdir=1,  ydir=1,  xstart=8,   ystart=44,  mx=-8, my=2 },
-					 ["BOTTOMLEFTTOPLEFT"] =	 { xoff=0,  yoff=4,  xdir=1,  ydir=-1, xstart=8,   ystart=-8,  mx=-8, my=-2 } }
-
 -- returns info depending on current docking. ie: dock_info("xoff")
 local function dock_info(which)
 
-	local anchor = GearRackUI.MainDock..GearRackUI.MenuDock
-
-	if dock_stats[anchor] and which and dock_stats[anchor][which] then
-		return dock_stats[anchor][which]
-	else
-		return 0
-	end
+	local stats = GearRack.DockStats[GearRackUI.MainDock..GearRackUI.MenuDock]
+	return stats and stats[which] or 0
 end
 
 -- returns info depending on where the window is currently
@@ -570,33 +415,33 @@ local function corner_info(which)
 end
 
 local inv_dock = {
-	[0]  = { orient="HORIZONTAL", maindock="BOTTOMLEFT", menudock="TOPLEFT" },
-	[1]  = { orient="VERTICAL", maindock="TOPLEFT", menudock="TOPRIGHT" },
-	[2]  = { orient="VERTICAL", maindock="TOPLEFT", menudock="TOPRIGHT" },
-	[3]  = { orient="VERTICAL", maindock="TOPLEFT", menudock="TOPRIGHT" },
-	[4]  = { orient="VERTICAL", maindock="TOPLEFT", menudock="TOPRIGHT" },
-	[5]  = { orient="VERTICAL", maindock="TOPLEFT", menudock="TOPRIGHT" },
-	[6]  = { orient="VERTICAL", maindock="TOPRIGHT", menudock="TOPLEFT" },
-	[7]  = { orient="VERTICAL", maindock="TOPRIGHT", menudock="TOPLEFT" },
-	[8]  = { orient="VERTICAL", maindock="TOPRIGHT", menudock="TOPLEFT" },
-	[9]  = { orient="VERTICAL", maindock="TOPLEFT", menudock="TOPRIGHT" },
-	[10]  = { orient="VERTICAL", maindock="TOPRIGHT", menudock="TOPLEFT" },
-	[11]  = { orient="VERTICAL", maindock="TOPRIGHT", menudock="TOPLEFT" },
-	[12]  = { orient="VERTICAL", maindock="TOPRIGHT", menudock="TOPLEFT" },
-	[13]  = { orient="VERTICAL", maindock="TOPRIGHT", menudock="TOPLEFT" },
-	[14]  = { orient="VERTICAL", maindock="TOPRIGHT", menudock="TOPLEFT" },
-	[15] = { orient="VERTICAL", maindock="TOPLEFT", menudock="TOPRIGHT" },
-	[16] = { orient="HORIZONTAL", maindock="BOTTOMLEFT", menudock="TOPLEFT" },
-	[17] = { orient="HORIZONTAL", maindock="BOTTOMLEFT", menudock="TOPLEFT" },
-	[18] = { orient="HORIZONTAL", maindock="BOTTOMLEFT", menudock="TOPLEFT" },
-	[19] = { orient="VERTICAL", maindock="TOPLEFT", menudock="TOPRIGHT" }
+	[0]  = { maindock="BOTTOMLEFT", menudock="TOPLEFT" },
+	[1]  = { maindock="TOPLEFT", menudock="TOPRIGHT" },
+	[2]  = { maindock="TOPLEFT", menudock="TOPRIGHT" },
+	[3]  = { maindock="TOPLEFT", menudock="TOPRIGHT" },
+	[4]  = { maindock="TOPLEFT", menudock="TOPRIGHT" },
+	[5]  = { maindock="TOPLEFT", menudock="TOPRIGHT" },
+	[6]  = { maindock="TOPRIGHT", menudock="TOPLEFT" },
+	[7]  = { maindock="TOPRIGHT", menudock="TOPLEFT" },
+	[8]  = { maindock="TOPRIGHT", menudock="TOPLEFT" },
+	[9]  = { maindock="TOPLEFT", menudock="TOPRIGHT" },
+	[10]  = { maindock="TOPRIGHT", menudock="TOPLEFT" },
+	[11]  = { maindock="TOPRIGHT", menudock="TOPLEFT" },
+	[12]  = { maindock="TOPRIGHT", menudock="TOPLEFT" },
+	[13]  = { maindock="TOPRIGHT", menudock="TOPLEFT" },
+	[14]  = { maindock="TOPRIGHT", menudock="TOPLEFT" },
+	[15] = { maindock="TOPLEFT", menudock="TOPRIGHT" },
+	[16] = { maindock="BOTTOMLEFT", menudock="TOPLEFT" },
+	[17] = { maindock="BOTTOMLEFT", menudock="TOPLEFT" },
+	[18] = { maindock="BOTTOMLEFT", menudock="TOPLEFT" },
+	[19] = { maindock="TOPLEFT", menudock="TOPRIGHT" }
 }
 
 -- places the menu against the invslot
 -- setframe = true when docking to set frame
 function GearRackUI_DockMenu(invslot,relativeTo)
 
-	local attachTo = ((not relativeTo) and "GearRackUIInv"..invslot) or (relativeTo=="TITAN" and "TitanPanelGearRackUIButton") or (relativeTo=="SET" and "GearRackUI_Sets_Inv"..invslot) or (relativeTo=="MINIMAP" and "GearRackMinimapButton") or GearRackUI.Indexes[invslot].paperdoll_slot
+	local attachTo = ((not relativeTo) and "GearRackUIInv"..invslot) or (relativeTo=="SET" and "GearRackUI_Sets_Inv"..invslot) or (relativeTo=="MINIMAP" and "GearRackMinimapButton") or GearRackUI.Indexes[invslot].paperdoll_slot
 	local noflip = GearRackDB.settings.FlipMenu=="OFF"
 	local corner=corner_info()
 	local mainorient = GearRackDB.bars[user].MainOrient
@@ -613,17 +458,6 @@ function GearRackUI_DockMenu(invslot,relativeTo)
 			GearRackUI.MainDock = "BOTTOMRIGHT"
 			GearRackUI.MenuDock = "TOPRIGHT"
 			ynudge = 12
-		end
-	elseif relativeTo=="TITAN" then
-		local xpos, ypos = GetCursorPosition()
-		if ypos<400 then
-			GearRackUI.MainDock = "TOPLEFT"
-			GearRackUI.MenuDock = "BOTTOMLEFT"
-			ynudge = 0
-		else
-			GearRackUI.MainDock = "BOTTOMLEFT"
-			GearRackUI.MenuDock = "TOPLEFT"
-			ynudge = 0
 		end
 	elseif mainorient=="HORIZONTAL" then
 		if corner=="BOTTOMLEFT" then
@@ -673,7 +507,7 @@ function GearRackUI_DockMenu(invslot,relativeTo)
 	end
 
 	local xoffset = dock_info("mx")
-	local yoffset = dock_info("my") + (ynudge and ynudge or 0)
+	local yoffset = dock_info("my") + (ynudge or 0)
 	if relativeTo == "CHARACTERSHEET" then
 		if invslot == 16 or invslot == 17 or invslot == 18 or invslot == 0 then
 			xoffset = -8
@@ -699,6 +533,7 @@ local function player_can_wear(bag,slot,invslot,entry)
 end
 
 -- the old central info gatherer, now a wrapper to GearRackEngine.GetItemInfo
+local itemLocation = {}
 local function get_item_info(bag,slot,entry)
 
 	local texture,itemID,name,equipslot,soulbound,count,quality
@@ -724,7 +559,9 @@ local function get_item_info(bag,slot,entry)
 	if GearRackDB.settings.Soulbound=="ON" and name then
 		-- Keep the existing filter's quest/conjured exceptions.
 		-- flags is ItemStats metadata, not the item's instance flag word.
-		local location = slot and {bagID=bag,slotIndex=slot} or {equipmentSlotIndex=bag}
+		local location = itemLocation
+		location.bagID, location.slotIndex = slot and bag, slot
+		location.equipmentSlotIndex = not slot and bag or nil
 		local data = C_Item.GetItemData(location)
 		soulbound = C_Item.IsBound(location)
 			or (data and (data.bindType==4 or bit.band(data.flags,2)~=0))
@@ -883,7 +720,7 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 					GearRackUI.AmmoCounts[name]=(GearRackUI.AmmoCounts[name] or 0)+count
 					for k=1,idx-1 do if GearRackUI.BaggedItems[k].name==name then return end end
 				end
-				local guid=entry and entry.guid or C_Item.GetItemGUID({bagID=bag,slotIndex=slot})
+				local guid=entry and entry.guid or GearRack.BagGUID(bag,slot)
 				populate_baggeditems(idx,bag,slot,name,texture,itemID,quality,guid)
 				idx=idx+1
 			end
@@ -935,8 +772,6 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 		end
 	elseif relativeTo=="MINIMAP" then
 		mainorient = "HORIZONTAL"
-	elseif relativeTo=="TITAN" then
-		mainorient = "HORIZONTAL"
 	end
 	GearRackUI_DockMenu(invslot,relativeTo)
 
@@ -970,7 +805,6 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 			GearRackUI_SetCooldownFont("GearRackUIMenu"..i)
 			_G["GearRackUIMenu"..i.."Border"]:SetVertexColor(.15,.25,1,1)
 			_G["GearRackUIMenu"..i.."Border"]:Hide()
-			get_or_create_quality_border(item)
 			GearRackUI.MaxItems = GearRackUI.MaxItems + 1
 		end
 		local icon = _G["GearRackUIMenu"..i.."Icon"]
@@ -1033,21 +867,9 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 				_G["GearRackUIMenu"..i.."Count"]:SetText(GearRackUI.AmmoCounts[GearRackUI.BaggedItems[i].name])
 			end
 			local menuBtn = _G["GearRackUIMenu"..i]
-			if menuBtn then
-				local qBorder = get_or_create_quality_border(menuBtn)
-				if qBorder then
-					local itemQuality = GearRackUI.BaggedItems[i].quality
-					if type(itemQuality) == "number" and itemQuality > 1 then
-						local r,g,b = GetBorderQualityColor(itemQuality)
-						qBorder:SetBackdropBorderColor(r,g,b,1.0)
-						qBorder:Show()
-					else
-						qBorder:Hide()
-					end
-				end
-				if menuBtn.enchantOverlay then
-					menuBtn.enchantOverlay:Hide()
-				end
+			GearRack.SetQualityBorder(menuBtn, GearRackUI.BaggedItems[i].quality, 16)
+			if menuBtn.enchantOverlay then
+				menuBtn.enchantOverlay:Hide()
 			end
 		end
 	elseif invslot==20 then -- if this is a set slot, show names and bindings
@@ -1060,11 +882,11 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 				_G["GearRackUIMenu"..i.."Border"]:Hide()
 				_G["GearRackUIMenu"..i.."Icon"]:SetVertexColor(1,1,1)
 			end
-			-- quality borders not shown on set-slot menus (items have no bag quality here)
-			local qBorder = _G["GearRackUIMenu"..i] and _G["GearRackUIMenu"..i].qualityBorder
-			if qBorder then qBorder:Hide() end
-			if _G["GearRackUIMenu"..i] and _G["GearRackUIMenu"..i].enchantOverlay then
-				_G["GearRackUIMenu"..i].enchantOverlay:Hide()
+			-- Set icons carry no item quality or enchant.
+			local menuBtn = _G["GearRackUIMenu"..i]
+			GearRack.SetQualityBorder(menuBtn, nil)
+			if menuBtn.enchantOverlay then
+				menuBtn.enchantOverlay:Hide()
 			end
 
 			item = _G["GearRackUIMenu"..i.."Name"]
@@ -1100,23 +922,11 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 
 			-- quality border & weapon enchant overlay
 			local menuBtn = _G["GearRackUIMenu"..i]
-			if menuBtn then
-				local qBorder = get_or_create_quality_border(menuBtn)
-				if qBorder then
-					local itemQuality = GearRackUI.BaggedItems[i].quality
-					if type(itemQuality) == "number" and itemQuality > 1 then
-						local r,g,b = GetBorderQualityColor(itemQuality)
-						qBorder:SetBackdropBorderColor(r,g,b,1.0)
-						qBorder:Show()
-					else
-						qBorder:Hide()
-					end
-				end
-				if invslot == 16 or invslot == 17 then
-					update_menu_weapon_enchant(menuBtn, GearRackUI.BaggedItems[i])
-				elseif menuBtn.enchantOverlay then
-					menuBtn.enchantOverlay:Hide()
-				end
+			GearRack.SetQualityBorder(menuBtn, GearRackUI.BaggedItems[i].quality, 16)
+			if invslot == 16 or invslot == 17 then
+				update_menu_weapon_enchant(menuBtn, GearRackUI.BaggedItems[i])
+			elseif menuBtn.enchantOverlay then
+				menuBtn.enchantOverlay:Hide()
 			end
 		end
 	end
@@ -1133,11 +943,6 @@ local function really_setpoint(frame,point,relativeTo,relativePoint,xoff,yoff)
 	frame:SetPoint(point,relativeTo,relativePoint,xoff,yoff)
 	GearRackDB.bars[user].XPos = xoff
 	GearRackDB.bars[user].YPos = yoff
-end
-
--- Keep the launcher recognizable when a set changes.
-local function draw_minimap_icon()
-	GearRackMinimapButton_Icon:SetTexture("Interface\\AddOns\\GearRack\\media\\GearRack-Icon.tga")
 end
 
 -- draws the inventory bar
@@ -1251,16 +1056,6 @@ local function draw_inv()
 		GearRackDB.bars[user].Visible="OFF"
 		GearRackUI_InvFrame:Hide()
 	end
-	draw_minimap_icon()
-
-	if GearRackUI_UpdatePlugins then
-		-- update plugin if it exists
-		local setname = GearRackEngine.CurrentSet()
-		if setname and GearRackDB.sets[user].Sets[setname] then
-			GearRackUI_UpdatePlugins()
-		end
-	end
-
 end
 
 local function unlocked()
@@ -1411,7 +1206,7 @@ local function initialize_display()
 	move_icon() -- moves minimap button
 
 
-	make_escable("GearRackUI_SetsFrame","add")
+	GearRack.SetEscapable("GearRackUI_SetsFrame",true)
 
 	GearRackUI_ChangeEventFont()
 
@@ -1473,25 +1268,13 @@ local function initialize_events(v1)
 
 	GearRackUI_DisableAllEvents()
 
+	-- A reset replaces every event with the included ones; sets keep their restore data.
 	if v1 then
 		GearRackDB.events = {}
 		GearRackDB.eventsInitialized=nil
-		-- go through and remove all old items from sets
-		for i in pairs(GearRackDB.sets) do
-			if GearRackDB.sets[i].Sets then
-				for j in pairs(GearRackDB.sets[i].Sets) do
-					for k=0,19 do
-						if GearRackDB.sets[i].Sets[j][k] then
-							GearRackDB.sets[i].Sets[j][k].old = nil
-						end
-					end
-				end
-			end
-		end
 	end
 
 	-- Fresh definitions are seeded once. User-edited scripts are never overwritten.
-	GearRackUI_MigrateDefaultEvents()
 	if not GearRackDB.eventsInitialized then
 		for name,definition in pairs(GearRackUI_DefaultEvents) do
 			if not GearRackDB.events[name] then
@@ -1512,31 +1295,13 @@ local function initialize_events(v1)
 		end
 	end
 
-	if TITAN_RIDER_ID and (not TitanRider_EquipToggle or (TitanGetVar and TitanGetVar(TITAN_RIDER_ID,"EquipItems"))) then
-		if GearRackDB.bars[user].Events["Mount"] and GearRackDB.bars[user].Events["Mount"].enabled then
-			GearRackDB.bars[user].Events["Mount"] = nil
-		end
-	end
-
 	GearRackUI_Events_ScrollFrameScrollBar:SetValue(0)
 	GearRackUI_Build_eventList()
 	GearRackUI_EnableAllEvents()
 end
 
-function GearRackUI_OnEvent(arg1_param, arg2_param, arg3_param, arg4_param, arg5_param)
-	local f, ev, a1, a2, a3
-	if type(arg1_param) == "table" then
-		f = arg1_param
-		ev = arg2_param or event
-		a1 = arg3_param or arg1
-		a2, a3 = arg4_param or arg2, arg5_param or arg3
-	else
-		f = this or GearRackUIFrame
-		ev = (type(arg1_param) == "string" and arg1_param) or arg2_param or event
-		a1 = (type(arg1_param) == "string" and (arg2_param or arg1)) or arg3_param or arg1
-		a2 = type(arg1_param)=="string" and (arg3_param or arg2) or arg2
-		a3 = type(arg1_param)=="string" and (arg4_param or arg3) or arg3
-	end
+function GearRackUI_OnEvent(ev)
+	local f, a1, a2, a3 = GearRackUIFrame, arg1, arg2, arg3
 
 	local dataChanged,bankChanged=GearRack.UIEvent(ev,a1,a2,a3)
 	if GearRackEngine.BankTransfer and (ev=="BAG_UPDATE" or ev=="PLAYERBANKSLOTS_CHANGED") then
@@ -1583,7 +1348,7 @@ function GearRackUI_OnEvent(arg1_param, arg2_param, arg3_param, arg4_param, arg5
 
 	elseif ev=="PLAYER_LOGIN" then
 
-		user = UnitName("player").." of "..GetRealmName()
+		user = GearRack.CharacterKey()
 
 		GearRack.NormalizeSavedData()
 		GearRackEngine.Initialize()
@@ -1611,64 +1376,45 @@ function GearRackUI_OnEvent(arg1_param, arg2_param, arg3_param, arg4_param, arg5
 	end
 end
 
-function GearRackUI_SlashHandler(arg1)
-	local command,argument=string.match(arg1 or "","^%s*(%S+)%s*(.-)%s*$")
-	command=string.lower(command or "")
+-- Equipment commands routed by GearRack.SlashHandler.
+function GearRackUI_SlashHandler(input)
+	local command,argument=string.match(input,"^%s*(%S+)%s*(.-)%s*$")
+	command=string.lower(command)
 	if command=="equip" then
-		if not argument or argument=="" then
-			DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Usage: /gr equip (set name)")
-			DEFAULT_CHAT_FRAME:AddMessage("ie, /gr equip pvp gear")
-		else
-			GearRackUI_EquipSet(argument)
-		end
-		return
+		GearRackUI_EquipSet(argument)
 	elseif command=="toggle" then
-		if not argument or argument=="" then
-			DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Usage: /gr toggle (set name)")
-			DEFAULT_CHAT_FRAME:AddMessage("ie, /gr toggle pvp gear")
-		else
-			GearRackUI_ToggleSet(argument)
-		end
-		return
-	end
-
-	arg1=command..((argument and argument~="") and " "..string.lower(argument) or "")
-
-	if not string.find(arg1,".+") then
-		GearRackUI_Toggle()
-	elseif arg1=="reset event" or arg1=="reset events" then
-		initialize_events("reset")
-		GearRackUI_Events_ScrollFrameScrollBar:SetValue(0)
-		if GearRackUI_SetsFrame:IsVisible() then sets_message("Default events reset.") end
-	elseif arg1=="reset bar" then
-		GearRackUI_Reset()
-	elseif arg1=="lock" then
-		set_lock("ON")
-	elseif arg1=="unlock" then
-		set_lock("OFF")
+		GearRackUI_ToggleSet(argument)
 	elseif command=="scale" then
-		local newscale=argument
-		if not tonumber(newscale) then
-			DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Usage: /gr scale (number)")
-			DEFAULT_CHAT_FRAME:AddMessage("ie, /gr scale 0.85")
+		if not tonumber(argument) then
+			DEFAULT_CHAT_FRAME:AddMessage("GearRack: /gr scale 0.85 sets the bar's scale.")
 		else
 			GearRackUI.FrameToScale = GearRackUI_InvFrame
-			GearRackUI_ScaleFrame(newscale)
+			GearRackUI_ScaleFrame(argument)
 			GearRackDB.bars[user].MainScale = GearRackUI_InvFrame:GetScale()
 			cooldowns_need_updating()
 		end
-	elseif string.find(arg1,"^opt") then
-		GearRackUI_Sets_Toggle()
+	elseif command=="lock" then
+		set_lock("ON")
+	elseif command=="unlock" then
+		set_lock("OFF")
+	elseif string.lower(input)=="reset bar" then
+		GearRackUI_Reset()
 	else
-		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00GearRack equipment commands:")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr bar : toggle the equipment bar")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr reset bar : reset the equipment bar position and scale")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr lock or unlock : toggles window lock")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr scale (number) : sets an exact scale")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr equip (set name) : equips a set")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr toggle (set name) : equips/unequips set")
-		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00Alt+click item slots in the character window to add/remove items.\nWhile locked, hold ALT over the window to access control buttons.")
+		GearRackUI_ConfirmResetEvents()
 	end
+end
+
+-- Resetting events deletes the player's own events, so it always asks first.
+function GearRackUI_ConfirmResetEvents()
+	StaticPopupDialogs["GEARRACK_RESETEVENTS"] = StaticPopupDialogs["GEARRACK_RESETEVENTS"] or {
+		text = "Restore the included events? Your own events are deleted.",
+		button1 = "Reset", button2 = "Cancel", showAlert = 1, timeout = 0, whileDead = 1, hideOnEscape = 1,
+		OnAccept = function()
+			initialize_events("reset")
+			if GearRackUI_SetsFrame:IsVisible() then sets_message("Included events restored.") end
+		end,
+	}
+	StaticPopup_Show("GEARRACK_RESETEVENTS")
 end
 
 --[[ Main bar add/remove functions ]]--
@@ -1703,11 +1449,9 @@ function GearRackUI.OnUseAction(slot, checkCursor, onSelf)
 	local actionType, actionID = GetActionInfo(slot)
 	if actionType~="item" and actionType~="macro" then return end
 	if not IsEquippedAction(slot) or not cursor_empty() then return end
-	if not actionID or actionType=="macro" then
-		GearRackUI_ItemTooltip:ClearLines()
-		GearRackUI_ItemTooltip:SetAction(slot)
-		local _,_,itemID = GearRackUI_ItemTooltip:GetItem()
-		actionID = itemID
+	if actionType=="macro" then
+		local _,link = GetMacroItem(actionID)
+		actionID = link and tonumber(string.match(link,"item:(%d+)"))
 	end
 	if not actionID then return end
 	for i=1,19 do
@@ -1782,15 +1526,9 @@ function newGearRackUI_PaperDollItemSlotButton_OnEnter()
 end
 
 function newGearRackUI_PaperDollFrame_OnShow()
-	if oldGearRackUI_PaperDollFrame_OnShow then
-		oldGearRackUI_PaperDollFrame_OnShow()
-	end
-	if _G["CharacterMainHandSlot"] then
-		update_equipped_enchant(16, _G["CharacterMainHandSlot"])
-	end
-	if _G["CharacterSecondaryHandSlot"] then
-		update_equipped_enchant(17, _G["CharacterSecondaryHandSlot"])
-	end
+	oldGearRackUI_PaperDollFrame_OnShow()
+	update_equipped_enchant(16, CharacterMainHandSlot)
+	update_equipped_enchant(17, CharacterSecondaryHandSlot)
 end
 
 function newGearRackUI_PaperDollFrame_OnHide()
@@ -1802,49 +1540,14 @@ function newGearRackUI_PaperDollFrame_OnHide()
 	oldGearRackUI_PaperDollFrame_OnHide()
 end
 
+-- Activating a Goblin Brainwashing Device specialization fires GEARRACK_GBD
+-- with the spec number. The device's other options pass through untouched.
 function GearRack_GossipTitleButton_OnClick()
-	if this.type ~= "Available" and this.type ~= "Active"
-		--localized
-		and GossipFrameNpcNameText:GetText() == GearRackUIText.GBD then
-		--first try to get spec by normal means
-		local actionText = this:GetText()
-
-		--we only care about activating specs, ignore "Save ..." entries
-		if string.find(actionText, GearRackUIText.GBDSave, 1, true) then
-			return GearRack_OriginalGossipTitleButton_OnClick()
-		end
-
-		--try to extract spec number
-		local _, _, specNum = string.find(actionText, GearRackUIText.GBDSpec)
-
-		if not specNum then
-			-- try to find via GNS
-			local name = UnitName("player")
-			if GNS_SpecNames and GNS_SpecNames[name] then
-				local _,_, specName = string.find(actionText, "^Activate%s*(.+) %([%d/]+%)$")
-				if specName then
-					for i = 1, 4 do
-						if specName == GNS_SpecNames[name][i] then
-							specNum = i
-							break
-						end
-					end
-				end
-			end
-
-			if not specNum then
-				DEFAULT_CHAT_FRAME:AddMessage("Unable to find SpecNum: "..tostring(actionText))
-			end
-		end
-
-		if specNum and GearRackDB.settings.EnableEvents == "ON" then
-			local holdarg1 = arg1
-			arg1 = specNum
-			GearRackUI_RegisterFrame_OnEvent("GEARRACK_GBD")
-			arg1 = holdarg1
-		end
+	if GearRackDB.settings.EnableEvents=="ON" and this.type~="Available" and this.type~="Active"
+		and GossipFrameNpcNameText:GetText()==GearRackUIText.GBD then
+		local _,_,spec = string.find(this:GetText() or "",GearRackUIText.GBDSpec)
+		if spec then GearRackUI_RegisterFrame_OnEvent("GEARRACK_GBD",spec) end
 	end
-
 	GearRack_OriginalGossipTitleButton_OnClick()
 end
 
@@ -1887,7 +1590,6 @@ function GearRackUI_InvUpdate_OnUpdate()
 		GearRackEngine.StartTimer("InvUpdate",1)
 	else
 		GearRackEngine.StopTimer("InvUpdate")
-		GearRackUI.Swapping = false
 
 		draw_inv()
 		if GearRackUI.TooltipType=="INVENTORY" and GearRackUI.TooltipOwner then
@@ -1967,16 +1669,10 @@ function GearRackUI_StopScaling(arg1)
 end
 
 function GearRackUI_ScaleFrame(scale)
-	scale = tonumber(scale)
-	if not scale or scale~=scale or scale<=0 or scale==math.huge then return end
 	local frame = GearRackUI.FrameToScale
 	if not frame then return end
-	local oldscale = frame:GetScale() or 1
-	local framex = (frame:GetLeft() or GearRackDB.bars[user].XPos)* oldscale
-	local framey = (frame:GetTop() or GearRackDB.bars[user].YPos)* oldscale
-
-	frame:SetScale(scale)
-	really_setpoint(GearRackUI_InvFrame,"TOPLEFT","UIParent","BOTTOMLEFT",framex/scale,framey/scale)
+	local x,y = GearRack.ScaleFrame(frame,scale,GearRackDB.bars[user].XPos,GearRackDB.bars[user].YPos)
+	if x then GearRackDB.bars[user].XPos, GearRackDB.bars[user].YPos = x, y end
 end
 
 --[[ Clicks ]]--
@@ -2009,17 +1705,15 @@ function GearRackUI_ReactUseInventoryItem(slot)
 	if GearRack.initialized and (slot==13 or slot==14) then GearRackTrinkets.ReflectTrinketUse(slot) end
 	GearRackEngine.StartTimer("InvUpdate",1.5) -- extra long wait
 
-	local item = C_Item.GetItemName({equipmentSlotIndex=slot})
+	local item = itemID and GetItemInfo(itemID)
+	-- Trinkets have their own watcher (Trinkets.lua).
 	if GearRackDB.settings.Notify=="ON" and item and slot~=13 and slot~=14 then
-		GearRackUI.NotifyList[item] = { bag=nil, slot=nil, inv=slot }
+		local watch = GearRackUI.NotifyList[itemID] or {}
+		GearRackUI.NotifyList[itemID] = watch
+		watch.name, watch.inv, watch.bag, watch.slot, watch.hadcooldown = item, slot, nil, nil, nil
 	end
 	if GearRackDB.settings.EnableEvents=="ON" and item then
-		local holdarg1,holdarg2 = arg1,arg2
-		arg1 = item
-		arg2 = slot
-		GearRackUI_RegisterFrame_OnEvent("GEARRACK_ITEMUSED")
-		arg1 = holdarg1
-		arg2 = holdarg2
+		GearRackUI_RegisterFrame_OnEvent("GEARRACK_ITEMUSED", item, slot)
 	end
 end
 
@@ -2204,7 +1898,7 @@ function GearRackUI_Menu_OnClick(arg1)
         local chosen={id=source.id or 0,name=source.name,texture=source.texture}
         if source.bag then
             local texture,liveID,liveName=GearRackEngine.GetItemInfo(source.bag,source.slot)
-            local liveGUID=C_Item.GetItemGUID({bagID=source.bag,slotIndex=source.slot})
+            local liveGUID=GearRack.BagGUID(source.bag,source.slot)
             if liveID~=source.id or (source.guid and source.guid~=liveGUID) then
                 GearRack.InvalidateBag(source.bag);return
             end
@@ -2336,184 +2030,88 @@ end
 
 --[[ Cooldowns ]]--
 
-local function format_time(seconds)
-
-	if seconds<60 then
-		return tostring(math.floor(seconds+.5))
-	else
-		if seconds < 3600 then
-			return math.ceil((seconds/60)).." m"
-		else
-			return math.ceil((seconds/3600)).." h"
-		end
-	end
-
-end
-
-local function write_cooldown(where,start,duration)
-
-	local cooldown = duration - (GearRackUI.CurrentTime - start)
-
-	if start==0 then
-		where:SetText("")
-	elseif cooldown<3 and not where:GetText() then
-		-- this is a global cooldown. don't display it. not accurate but at least not annoying
-	else
-		where:SetText(format_time(cooldown))
+-- Ready alert for a used item; also fires GEARRACK_NOTIFY for events.
+local function notify(name)
+	GearRack.Alert(string.format((GearRackDB.settings.NotifyThirty=="OFF") and GearRackUIText.READY or GearRackUIText.READYTHIRTY,name))
+	if GearRackDB.settings.EnableEvents=="ON" then
+		GearRackUI_RegisterFrame_OnEvent("GEARRACK_NOTIFY",name)
 	end
 end
-
-local function notify(v1)
-
-	local text = string.format((GearRackDB.settings.NotifyThirty=="OFF") and GearRackUIText.READY or GearRackUIText.READYTHIRTY,v1 or "")
-
-	if v1 then
-		PlaySound("GnomeExploration")
-		if SCT_Display then
-			-- send via SCT if it exists
-			SCT_Display(text,{r=.2,g=.7,b=.9})
-		elseif SHOW_COMBAT_TEXT=="1" then
-			CombatText_AddMessage(text, CombatText_StandardScroll, .2, .7, .9) -- or default UI's SCT
-		else
-			-- send vis UIErrorsFrame if SCT doesn't exit
-			UIErrorsFrame:AddMessage(text,.2,.7,.9,1,UIERRORS_HOLD_TIME)
-		end
-		DEFAULT_CHAT_FRAME:AddMessage("|cff33b2e5"..text)
-		if GearRackDB.settings.EnableEvents=="ON" then
-			local holdarg1= arg1
-			arg1 = v1
-			GearRackUI_RegisterFrame_OnEvent("GEARRACK_NOTIFY")
-			arg1 = holdarg1
-		end
-	end
-end
-
--- Public notification sink used by the common trinket cooldown watcher.
 GearRackUI_Notify = notify
-
--- populate GearRackUI.NotifyList[v1] with the location of item named 'v1'
-local function notify_find_item(v1)
-
-	local found_inv,found_bag,found_slot = GearRackEngine.FindItem(nil,v1,"passive")
-
-	if found_inv then
-		GearRackUI.NotifyList[v1].inv = found_inv
-		GearRackUI.NotifyList[v1].bag = nil
-		GearRackUI.NotifyList[v1].slot = nil
-	elseif found_bag then
-		GearRackUI.NotifyList[v1].inv = nil
-		GearRackUI.NotifyList[v1].bag = found_bag
-		GearRackUI.NotifyList[v1].slot = found_slot
-	else
-		GearRackUI.NotifyList[v1] = nil
-	end
-end
 
 -- Refresh only visible cooldown numbers, including immediately after an option change.
 function GearRackUI_UpdateCooldownNumbers()
-
 	local start,duration
-	GearRackUI.CurrentTime = GetTime()
-
 	if GearRackUI_InvFrame:IsVisible() then
-		for i=1,#GearRackDB.bars[user].Bar do
-			local slot = GearRackDB.bars[user].Bar[i]
+		for _,slot in ipairs(GearRackDB.bars[user].Bar) do
 			if slot < 20 then
 				start, duration = GearRack.GetInventoryCooldown(slot)
-				write_cooldown(_G["GearRackUIInv"..slot.."Time"],start,duration)
+				GearRack.WriteCooldown(_G["GearRackUIInv"..slot.."Time"],start,duration)
 			end
 		end
 	end
-
 	if GearRackUI_MenuFrame:IsVisible() and GearRackUI.InvOpen then
 		for i=1,GearRackUI.NumberOfItems do
-			if GearRackUI.BaggedItems[i].bag then
-				start, duration = GetContainerItemCooldown(GearRackUI.BaggedItems[i].bag,GearRackUI.BaggedItems[i].slot)
-				write_cooldown(_G["GearRackUIMenu"..i.."Time"],start,duration)
+			local item = GearRackUI.BaggedItems[i]
+			if item.bag then
+				start, duration = GetContainerItemCooldown(item.bag,item.slot)
+				GearRack.WriteCooldown(_G["GearRackUIMenu"..i.."Time"],start,duration)
 			end
 		end
 	end
-
-
 end
 
-function GearRackUI_CooldownUpdate_OnUpdate()
+-- Notify list: a used item is tracked by ID wherever it moves on the player.
+local function notify_cooldown(itemID,watch)
+	local location
+	if watch.inv then location = GetInventoryItemID("player",watch.inv)
+	elseif watch.bag then location = C_Container.GetContainerItemID(watch.bag,watch.slot) end
+	if location ~= itemID then
+		watch.inv,watch.bag,watch.slot = GearRack.FindLocation(itemID,nil,true,true)
+		if not watch.inv and not watch.bag then return true end
+	end
+	local start,duration
+	if watch.inv then start,duration = GearRack.GetInventoryCooldown(watch.inv)
+	else start,duration = GetContainerItemCooldown(watch.bag,watch.slot) end
+	local left = start==0 and 0 or duration-(GetTime()-start)
+	if left>3 then watch.hadcooldown = true end
+	if watch.hadcooldown and (left<=0 or (GearRackDB.settings.NotifyThirty=="ON" and left<30)) then
+		notify(watch.name)
+		return true
+	end
+end
 
+-- One pass may draw both hands in two panels; it shares one native read.
+local equippedState = {}
+function GearRackUI_CooldownUpdate_OnUpdate()
 	if GearRackUI.CooldownsNeedUpdating then
 		GearRackUI.CooldownsNeedUpdating = false
 		update_inv_cooldowns()
 	end
-
 	GearRackUI_UpdateCooldownNumbers()
-	-- One synchronous UI pass may draw both hands in two different panels.
-	-- Share only that pass's native clock and structured identities; never
-	-- retain a descriptor duration or native countdown across timer ticks.
-	local equippedState
-	if GearRackUI_InvFrame:IsVisible() or (PaperDollFrame and PaperDollFrame:IsVisible()) then equippedState = {} end
-
-	-- update weapon enchant indicators on equipped buttons
+	table.wipe(equippedState)
 	if GearRackUI_InvFrame:IsVisible() then
-		if _G["GearRackUIInv16"] and _G["GearRackUIInv16"]:IsVisible() then
-			update_equipped_enchant(16, _G["GearRackUIInv16"], equippedState)
-		end
-		if _G["GearRackUIInv17"] and _G["GearRackUIInv17"]:IsVisible() then
-			update_equipped_enchant(17, _G["GearRackUIInv17"], equippedState)
+		for slot=16,17 do
+			local button = _G["GearRackUIInv"..slot]
+			if button:IsVisible() then update_equipped_enchant(slot, button, equippedState) end
 		end
 	end
-
-	-- update weapon enchant indicators on paperdoll frame if open
-	if PaperDollFrame and PaperDollFrame:IsVisible() then
-		if _G["CharacterMainHandSlot"] and _G["CharacterMainHandSlot"]:IsVisible() then
-			update_equipped_enchant(16, _G["CharacterMainHandSlot"], equippedState)
-		end
-		if _G["CharacterSecondaryHandSlot"] and _G["CharacterSecondaryHandSlot"]:IsVisible() then
-			update_equipped_enchant(17, _G["CharacterSecondaryHandSlot"], equippedState)
-		end
+	if PaperDollFrame:IsVisible() then
+		update_equipped_enchant(16, CharacterMainHandSlot, equippedState)
+		update_equipped_enchant(17, CharacterSecondaryHandSlot, equippedState)
 	end
-
-	-- update weapon enchant indicators on open weapon swap menu
-	if GearRackUI_MenuFrame:IsVisible() and GearRackUI.InvOpen and (GearRackUI.InvOpen == 16 or GearRackUI.InvOpen == 17) then
+	if GearRackUI_MenuFrame:IsVisible() and (GearRackUI.InvOpen == 16 or GearRackUI.InvOpen == 17) then
 		for i=1,GearRackUI.NumberOfItems do
-			if GearRackUI.BaggedItems[i] and GearRackUI.BaggedItems[i].bag then
+			if GearRackUI.BaggedItems[i].bag then
 				update_menu_weapon_enchant(_G["GearRackUIMenu"..i], GearRackUI.BaggedItems[i])
 			end
 		end
 	end
-
 	if GearRackDB.settings.Notify=="ON" then
-
-		local name,start,duration,cooldown
-		GearRackUI.CurrentTime = GetTime()
-
-		-- go down notify list and check up on each item used
-		for i in pairs(GearRackUI.NotifyList) do
-			if GearRackUI.NotifyList[i].inv then
-				name = C_Item.GetItemName({equipmentSlotIndex=GearRackUI.NotifyList[i].inv})
-			else
-				name = C_Item.GetItemName({bagID=GearRackUI.NotifyList[i].bag,slotIndex=GearRackUI.NotifyList[i].slot})
-			end
-			if i ~= name then
-				notify_find_item(i) -- item has moved, go find it!
-			end
-
-			if GearRackUI.NotifyList[i] then -- if item still on person (wasn't banked)
-				if GearRackUI.NotifyList[i].inv then -- if it has an inventory spot
-					start, duration = GearRack.GetInventoryCooldown(GearRackUI.NotifyList[i].inv)
-				else -- otherwise it's in a bag
-					start, duration = GetContainerItemCooldown(GearRackUI.NotifyList[i].bag,GearRackUI.NotifyList[i].slot)
-				end
-				cooldown = (start==0) and 0 or (duration - (GearRackUI.CurrentTime - start))
-					if cooldown>3 then
-					GearRackUI.NotifyList[i].hadcooldown = true
-				end
-					if GearRackUI.NotifyList[i].hadcooldown and (cooldown==0 or (GearRackDB.settings.NotifyThirty=="ON" and cooldown<30)) then
-					notify(i)
-					GearRackUI.NotifyList[i] = nil
-				end
-			end
+		for itemID,watch in pairs(GearRackUI.NotifyList) do
+			if notify_cooldown(itemID,watch) then GearRackUI.NotifyList[itemID] = nil end
 		end
 	end
-
 end
 
 -- Apply the permanent large gold style to an equipment counter.
@@ -2605,8 +2203,6 @@ function GearRackUI_Opt_OnClick(overrideID)
 				GearRackUI_DisableAllEvents()
 			end
 			sets_message((GearRackDB.settings.EnableEvents=="ON") and "Events enabled" or "Events disabled")
-		elseif id=="GearRackUI_Opt_DisableToggle" then
-			draw_minimap_icon()
 		elseif id=="GearRackUI_Opt_ShowAllEvents" then
 			GearRackUI_Events_ScrollFrameScrollBar:SetValue(0)
 			GearRackUI_Build_eventList()
@@ -2930,11 +2526,10 @@ function GearRackUI_Sets_Save_OnClick()
 
 	GearRackUI_Sets_Name:ClearFocus()
 
-	-- if a 2H weapon in mainhand, ignore offhand (don't try to equip empty slot to offhand)
+	-- With a two-hander worn this save leaves the off hand out (no empty slot
+	-- to equip there); the draft keeps its off-hand choice for later saves.
 	_,_,_,itemslot = get_item_info(16)
-	if itemslot=="INVTYPE_2HWEAPON" then
-		GearRackUI.SetBuild[17] = nil
-	end
+	local twoHand = itemslot=="INVTYPE_2HWEAPON"
 
 	if string.len(setname)>0 then
 		if GearRackDB.sets[user].Sets[setname] then
@@ -2945,7 +2540,7 @@ function GearRackUI_Sets_Save_OnClick()
 		GearRackEngine.ForgetSetUndo(setname)
 		GearRackDB.sets[user].Sets[setname] = { icon=GearRackUI.SelectedIcon, key=oldkey, keyindex=oldkeyindex }
 		for i=0,19 do
-			if GearRackUI.SetBuild[i]==1 then
+			if GearRackUI.SetBuild[i]==1 and not (twoHand and i==17) then
 				GearRackDB.sets[user].Sets[setname][i] = {}
 				itemcount = itemcount + 1
 				_,_,itemname = get_item_info(i)
@@ -2958,18 +2553,14 @@ function GearRackUI_Sets_Save_OnClick()
 		GearRackDB.sets[user].Sets[setname].showhelm = GearRackUI_ShowHelm.tristate
 		GearRackDB.sets[user].Sets[setname].showcloak = GearRackUI_ShowCloak.tristate
 	end
-	draw_minimap_icon()
 	validate_set_buttons()
 end
 
 -- equips a set by name, usable in macros. now a wrapper to GearRackEngine.EquipSet()
 function GearRackUI_EquipSet(setname)
-
-	if not setname and GearRackUI.EventSetName then
-		setname = GearRackUI.EventSetName
-	end
-
-	GearRackEngine.EquipSet(setname)
+	setname = setname or GearRackUI.EventSetName
+	-- A script tested without a chosen set has nothing to equip.
+	if setname then GearRackEngine.EquipSet(setname) end
 end
 
 -- hitting the dropdown button toggles between icons and savedsets
@@ -3401,14 +2992,6 @@ end
 
 --[[ Minimap button ]]--
 
-function GearRackUI_Sets_Toggle(v1)
-	if GearRackUI_SetsFrame:IsShown() and (not v1 or GearRackUI.SelectedTab==v1) then
-		GearRack.CloseMenus()
-	else
-		GearRack.ShowMenuPage(GearRackUI_SetsFrame,v1 or GearRackUI.SelectedTab or 2,true)
-	end
-end
-
 -- when user clicks the minimap button
 function GearRackMinimapButton_OnClick(arg1)
 
@@ -3459,10 +3042,10 @@ local function restore_sets_escape()
 		setsEscapeTimer=nil
 		local selectShown=GearRackUI_Sets_SetSelect and GearRackUI_Sets_SetSelect:IsShown()
 		local editShown=GearRackUI_EditEvent and GearRackUI_EditEvent:IsShown()
-		if not selectShown then make_escable("GearRackUI_Sets_SetSelect","remove") end
-		if not editShown then make_escable("GearRackUI_EditEvent","remove") end
+		if not selectShown then GearRack.SetEscapable("GearRackUI_Sets_SetSelect",false) end
+		if not editShown then GearRack.SetEscapable("GearRackUI_EditEvent",false) end
 		if GearRackUI_SetsFrame:IsVisible() and not selectShown and not editShown then
-			make_escable("GearRackUI_SetsFrame","add")
+			GearRack.SetEscapable("GearRackUI_SetsFrame",true)
 		end
 	end)
 	setsEscapeTimer=handle
@@ -3472,8 +3055,8 @@ end
 function GearRackUI_SetSelect_OnShow()
   -- remove GearRackUI_SetsFrame from UISpecialFrames and add GearRackUI_Sets_SetSelect
 	cancel_sets_escape()
-	make_escable("GearRackUI_SetsFrame","remove")
-	make_escable("GearRackUI_Sets_SetSelect","add")
+	GearRack.SetEscapable("GearRackUI_SetsFrame",false)
+	GearRack.SetEscapable("GearRackUI_Sets_SetSelect",true)
 end
 
 -- when set chooser dropdown hidden
@@ -3486,8 +3069,8 @@ end
 function GearRackUI_EditEvent_OnShow()
 	cancel_sets_escape()
 	GearRackUI_Sets_SubFrame4:Hide()
-	make_escable("GearRackUI_SetsFrame","remove")
-	make_escable("GearRackUI_EditEvent","add")
+	GearRack.SetEscapable("GearRackUI_SetsFrame",false)
+	GearRack.SetEscapable("GearRackUI_EditEvent",true)
 end
 
 -- when event editor hidden
@@ -3512,9 +3095,9 @@ end
 function GearRackUI_SetsFrame_OnShow()
 	cancel_sets_escape()
 	if not GearRackUI_Sets_SetSelect:IsShown() and not GearRackUI_EditEvent:IsShown() then
-		make_escable("GearRackUI_Sets_SetSelect","remove")
-		make_escable("GearRackUI_EditEvent","remove")
-		make_escable("GearRackUI_SetsFrame","add")
+		GearRack.SetEscapable("GearRackUI_Sets_SetSelect",false)
+		GearRack.SetEscapable("GearRackUI_EditEvent",false)
+		GearRack.SetEscapable("GearRackUI_SetsFrame",true)
 	end
 	-- Every launcher reaches this callback. Build the draft once, then refresh
 	-- equipped icons without replacing its name, selected slots or display choices.
@@ -3530,19 +3113,6 @@ function GearRackUI_SetsFrame_OnShow()
 end
 
 --[[ Events ]]--
-
-local function check_for_titanrider()
-
-	if TITAN_RIDER_ID and (not TitanRider_EquipToggle or (TitanGetVar and TitanGetVar(TITAN_RIDER_ID,"EquipItems"))) then
-		StaticPopupDialogs["GEARRACK_TITANRIDER"] = {
-			text = "It appears you have Titan Rider (a module of Titan Panel) enabled.  Do not use this Mount event with Titan Rider enabled or it will create a mess (items on cursor, gear swapping back).",
-			button1 = "Ok", timeout = 0, whileDead = 1, showAlert = 1, hideOnEscape = 1 }
-		StaticPopup_Show("GEARRACK_TITANRIDER")
-		return 1
-	else
-		return nil
-	end
-end
 
 -- changes the font size in the event edit window
 function GearRackUI_ChangeEventFont()
@@ -3698,9 +3268,6 @@ function GearRackUI_EventsList_EnableOnClick()
 			GearRackDB.bars[user].Events[eventname] = {}
 		end
 		GearRackDB.bars[user].Events[eventname].enabled = this:GetChecked()
-		if eventname=="Mount" and check_for_titanrider() then
-			GearRackDB.bars[user].Events[eventname].enabled = nil
-		end
 	end
 	GearRackUI_Build_eventList()
 end
@@ -3733,14 +3300,10 @@ function GearRackUI_EventsListIcon_OnClick()
 	local idx = event_idx()
 
 	if idx<eventListSize then
-		if eventList[idx].name=="Mount" and check_for_titanrider() then
-			return
-		else
-			GearRackUI.SelectedEvent = idx
-			GearRackUI_Events_ScrollFrame_Update()
-			GearRackUI_Validate_EventList_Buttons()
-			GearRackUI_Sets_DropDownButton_OnClick()
-		end
+		GearRackUI.SelectedEvent = idx
+		GearRackUI_Events_ScrollFrame_Update()
+		GearRackUI_Validate_EventList_Buttons()
+		GearRackUI_Sets_DropDownButton_OnClick()
 	end
 end
 
@@ -4020,17 +3583,10 @@ local function run_event_script(eventname,a1,a2)
 end
 
 -- events("triggers") defined in game go through here
-function GearRackUI_RegisterFrame_OnEvent(arg1_param, arg2_param, arg3_param)
-	local ev, a1, a2
-	if type(arg1_param) == "table" then
-		ev = arg2_param or event
-		a1 = arg3_param or arg1
-		a2 = arg2
-	else
-		ev = (type(arg1_param) == "string" and arg1_param) or arg2_param or event
-		a1 = (type(arg1_param) == "string" and (arg2_param or arg1)) or arg3_param or arg1
-		a2 = arg2
-	end
+-- Game events arrive with their payload in arg1/arg2; GearRack's own triggers
+-- pass it directly.
+function GearRackUI_RegisterFrame_OnEvent(ev, a1, a2)
+	if a1==nil then a1, a2 = arg1, arg2 end
 
 	-- A swing, spell or shot of yours was dodged: arg1 is the GUID of the unit that dodged.
 	-- Swing suffix values start at arg12; SPELL_ and RANGE_ suffix values at arg15.
@@ -4089,12 +3645,12 @@ function GearRackUI_ToggleEvents()
 		GearRackDB.settings.EnableEvents="ON"
 		GearRackUI_Opt_EnableEvents:SetChecked(1)
 		GearRackUI_EnableAllEvents()
-		DEFAULT_CHAT_FRAME:AddMessage("|cFF66AAFFGearRackUI Automatic Events are now |cFF55FF55ON")
+		DEFAULT_CHAT_FRAME:AddMessage("GearRack: events |cFF55FF55on")
 	else
 		GearRackDB.settings.EnableEvents="OFF"
 		GearRackUI_Opt_EnableEvents:SetChecked(nil)
 		GearRackUI_DisableAllEvents()
-		DEFAULT_CHAT_FRAME:AddMessage("|cFF66AAFFGearRackUI Automatic Events are now |cFFFF5555OFF")
+		DEFAULT_CHAT_FRAME:AddMessage("GearRack: events |cFFFF5555off")
 	end
 end
 
@@ -4122,11 +3678,6 @@ end
 
 --Event script helper functions
 --These are not necessary.  They can be completely encapsulated in the scripts themselves.  They're here for convenience.
-
--- Mount state comes directly from the enhanced client.
-function GearRackUI_PlayerMounted(v1)
-	return IsMounted() and true or false
-end
 
 -- returns the name of the form the player is in
 function GearRackUI_GetForm()
@@ -4241,14 +3792,9 @@ function GearRackEngine.Initialize()
 	GearRackEngine.CreateTimer("BankTransferCheck",GearRackEngine.ReconcileBankTransfer,.2)
 end
 
-function GearRackEngine.OnEvent(arg1_param, arg2_param, arg3_param)
+function GearRackEngine.OnEvent(ev)
 	if GearRack.worldSuspended then return end
-	local ev
-	if type(arg1_param) == "table" then
-		ev = arg2_param or event
-	else
-		ev = (type(arg1_param) == "string" and arg1_param) or arg2_param or event
-	end
+	ev = ev or event
 
 	if ev=="ITEM_LOCK_CHANGED" then
 		GearRackEngine.ReconcileBankTransfer()
@@ -4355,21 +3901,18 @@ function GearRackEngine.GetNameByID(itemID)
 end
 
 -- returns true if the bagid (0-4) is a normal "Container", as opposed to quivers and ammo pouches
+-- True for a general-purpose bag (not a quiver, ammo pouch or other special bag).
 function GearRackEngine.ValidBag(bagid)
-	if bagid==0 or bagid==-1 then
-		return true
+	if bagid==0 or bagid==-1 then return true end
+	if bagid<=4 then
+		local _,bagType = C_Container.GetContainerNumFreeSlots(bagid)
+		return bagType==0
 	end
-
-	local invID = ContainerIDToInventoryID(bagid)
-	local link = GetInventoryItemLink("player",invID)
-	if link then
-		local _,_,_,_,_,bagtype = GetItemInfo(link)
-		if bagtype==GearRackUIText.INVTYPE_CONTAINER then
-			return true
-		end
-	end
-
-	return false
+	-- ClassicAPI reports no bag family for bank bags; read the bag item's subtype.
+	local link = GetInventoryItemLink("player",ContainerIDToInventoryID(bagid))
+	if not link then return false end
+	local _,_,_,_,_,subType = GetItemInfo(link)
+	return subType==GearRackUIText.INVTYPE_CONTAINER
 end
 
 function GearRackEngine.FindSpaceInBag(bag)
@@ -4577,7 +4120,7 @@ end
 function GearRackEngine.SlotMatches(slot,wanted)
     local _,id,name=GearRackEngine.GetItemInfo(slot)
     return (not wanted.id or id==wanted.id) and (wanted.id or name==wanted.name)
-        and (not wanted.guid or C_Item.GetItemGUID({equipmentSlotIndex=slot})==wanted.guid)
+        and (not wanted.guid or GearRack.EquippedGUID(slot)==wanted.guid)
 end
 
 function GearRackEngine.SwapMatches(items)
@@ -4586,7 +4129,7 @@ function GearRackEngine.SwapMatches(items)
 		if wanted and (wanted.id or wanted.name) then
 			local _,id,name = GearRackEngine.GetItemInfo(i)
 			if (wanted.id and id~=wanted.id) or (not wanted.id and name~=wanted.name)
-                or (wanted.guid and C_Item.GetItemGUID({equipmentSlotIndex=i})~=wanted.guid) then
+                or (wanted.guid and GearRack.EquippedGUID(i)~=wanted.guid) then
 				return false
 			end
 		end
@@ -5228,15 +4771,20 @@ end
 -- returns true if anything is locked
 function GearRackEngine.AnyLocked()
 	for i=0,19 do
-		if IsInventoryItemLocked(i) then
-			return true
-		end
+		if IsInventoryItemLocked(i) then return true end
 	end
-	for i=0,4 do
-		for j=1,GetContainerNumSlots(i) do
-			local _,_,isLocked = GetContainerItemInfo(i,j)
-			if isLocked then
-				return true
+	-- Only occupied slots can be locked: read the cached ones, and every slot
+	-- of a bag that changed since the cache was built.
+	for bag=0,4 do
+		if GearRack.DirtyBags[bag] or not GearRack.Bags[bag] then
+			for slot=1,GetContainerNumSlots(bag) do
+				local _,_,locked = GetContainerItemInfo(bag,slot)
+				if locked then return true end
+			end
+		else
+			for _,entry in ipairs(GearRack.Bags[bag]) do
+				local _,_,locked = GetContainerItemInfo(bag,entry.slot)
+				if locked then return true end
 			end
 		end
 	end
@@ -5328,7 +4876,7 @@ function GearRackEngine.AddToCombatQueue(slot,id,owner)
 	local _,wornId = GearRackEngine.GetItemInfo(slot)
 	local wanted=owner and owner.items and owner.items[slot]
 	local alreadyWorn=id==wornId and (not wanted or not wanted.guid
-		or C_Item.GetItemGUID({equipmentSlotIndex=slot})==wanted.guid)
+		or GearRack.EquippedGUID(slot)==wanted.guid)
 	local toggleOff = not owner and GearRackEngine.CombatQueue[slot]==id
 	if not owner then GearRackEngine.CancelDeferredRequest(GearRackEngine.CombatQueueOwner[slot]) end
 	if toggleOff or alreadyWorn then
@@ -5580,8 +5128,6 @@ function GearRackEngine.MenuFrame()
 		end
 	elseif dock=="MINIMAP" then
 		owner=GearRackMinimapButton
-	elseif dock=="TITAN" then
-		owner=TitanPanelGearRackUIButton
 	end
 	if not owner or not owner:IsVisible() or
 		(not owner:IsMouseOver(4,-4,-4,4) and not GearRackUI_MenuFrame:IsMouseOver(4,-4,-4,4)) then
@@ -5689,14 +5235,13 @@ function GearRackEngine.GetSetsWithItem(itemIdentifier)
 	end
 	return matchingSets
 end
-GearRackUI.GetSetsWithItem = GearRackEngine.GetSetsWithItem
 
 function GearRackEngine.FindBankedItem(itemID,itemGUID)
 	for _,i in ipairs(GearRackUI.BankSlots) do
 		for j=1,GetContainerNumSlots(i) do
 			local _, currentID = GearRackEngine.GetItemInfo(i,j)
 			if itemID and currentID == itemID and not GearRackEngine.LockList[i][j]
-				and (not itemGUID or C_Item.GetItemGUID({bagID=i,slotIndex=j})==itemGUID) then
+				and (not itemGUID or GearRack.BagGUID(i,j)==itemGUID) then
 				return i,j
 			end
 		end

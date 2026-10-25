@@ -1,6 +1,6 @@
 # GearRack
 
-**v1.1.0** · Gear sets, trinket priorities and weapon swaps for **WoW 1.12.1** (build 5875).
+**v1.0.0** · Gear sets, trinket priorities and weapon swaps for **WoW 1.12.1** (build 5875).
 
 - Save full or partial gear sets, give them icons and keys.
 - Swap items from an equipment bar or your character window.
@@ -76,7 +76,7 @@ if not GearRack.IsSetEquipped(set) then GearRack.EquipSet(set) end
 ```
 
 **3. Switch it on.** Save, click the event's **?** icon and pick **Instant**, tick the
-event and **Enable Events**, then close the window.
+event and **Enable events**, then close the window.
 
 > [!TIP]
 > Not sure what a mob is? Target it and type
@@ -105,6 +105,7 @@ More scripts: [Event examples](docs/EVENT_EXAMPLES.md).
 | `/gr queues` | Trinket priority lists |
 | `/gr trinkets` | Show or hide the trinket buttons |
 | `/gr keys` | Open Key Bindings |
+| `/gr reset bar`, `/gr reset events` | Reset the bar, or restore the included events (asks first) |
 
 Set and profile names may contain spaces.
 

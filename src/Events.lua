@@ -1,14 +1,11 @@
 if not GearRack.enabled then return end
 
---[[ Events.lua - Default automated gear-swapping event definitions for GearRackUI ]]
+-- The included event templates. /gr reset events restores them.
+-- UNVERIFIED: test in game. Item, zone and buff-icon names in these scripts
+-- (Insignia, Plaguelands, Ahn'Qiraj, Zul'Gurub, Evocation, Spirit Tap) are not
+-- checked against the server; edit a template if one never fires.
 
 GearRackUI = GearRackUI or {}
-
---[[ Events
-
-	These are the default events.  They are locale-specific.
-	/gr reset events : Will restore events to a default state
-]]
 
 GearRackUI_DefaultEvents = {
 	["Druid:Caster Form"] = {
@@ -201,38 +198,3 @@ GearRackUI_DefaultEvents = {
 		"--[[Equips mount set as normal unless in ZG or AQ]]",
 	},
 }
-
--- Exact stock-template upgrades preserve edits, disabled associations and removals.
-local previousDefaults = {
-	["Brainwashing 1"]={trigger="GEARRACK_GBD",delay=0.1,script="local spec = tonumber(arg1)\nif spec == 1 then\n  GearRack.EquipSet()\n  DEFAULT_CHAT_FRAME:AddMessage(\"GearRack - 1st Goblin Brainwashing Device set equipped\")\nend"},
-	["Brainwashing 2"]={trigger="GEARRACK_GBD",delay=0.1,script="local spec = tonumber(arg1)\nif spec == 2 then\n  GearRack.EquipSet()\n  DEFAULT_CHAT_FRAME:AddMessage(\"GearRack - 2nd Goblin Brainwashing Device set equipped\")\nend"},
-	["Brainwashing 3"]={trigger="GEARRACK_GBD",delay=0.1,script="local spec = tonumber(arg1)\nif spec == 3 then\n  GearRack.EquipSet()\n  DEFAULT_CHAT_FRAME:AddMessage(\"GearRack - 3rd Goblin Brainwashing Device set equipped\")\nend"},
-	["Brainwashing 4"]={trigger="GEARRACK_GBD",delay=0.1,script="local spec = tonumber(arg1)\nif spec == 4 then\n  GearRack.EquipSet()\n  DEFAULT_CHAT_FRAME:AddMessage(\"GearRack - 4th Goblin Brainwashing Device set equipped\")\nend"},
-	["Plaguelands"]={trigger="ZONE_CHANGED_NEW_AREA",delay=1,script="local zone = GetRealZoneText(),0\nif (zone==\"Western Plaguelands\" or zone==\"Eastern Plaguelands\" or zone==\"Scholomance\" or zone==\"Stratholme\") and not GEARRACK_PLAGUE then\n    GearRack.EquipSet() GEARRACK_PLAGUE=1\nelseif GEARRACK_PLAGUE then\n    GearRack.LoadSet() GEARRACK_PLAGUE=nil\nend\n--[[Equips set to be worn while in plaguelands.]]"},
-	["Low Mana"]={trigger="UNIT_MANA",delay=0.5,script="local mana = UnitMana(\"player\") / UnitManaMax(\"player\")\nif mana < .5 and not GEARRACK_OOM then\n  SaveSet()\n  GearRack.EquipSet()\n  GEARRACK_OOM = 1\nelseif GEARRACK_OOM and mana > .75 then\n  GearRack.LoadSet()\n  GEARRACK_OOM = nil\nend\n--[[Equips a set when mana is below 50% and re-equips previous gear at 75% mana. Remember: You can't swap non-weapons in combat.]]"},
-	["Druid:Travel Form"]={trigger="PLAYER_AURAS_CHANGED",delay=0,script="local form=GearRackUI_GetForm() if form==\"Travel Form\" and GEARRACK_FORM~=form then GearRack.EquipSet() elseif form~=\"Travel Form\"  then GearRack.LoadSet() end GEARRACK_FORM=form --[[Equip a set when in travel form.]]"},
-	["About Town"]={trigger="PLAYER_UPDATE_RESTING",delay=0,script="if IsResting() and not GEARRACK_TOWN then GearRack.EquipSet() GEARRACK_TOWN=1 elseif GEARRACK_TOWN then GearRack.LoadSet() GEARRACK_TOWN=nil end\n--[[Equips a set while in a city or inn.]]"},
-	["Priest:Spirit Tap Begin"]={trigger="PLAYER_REGEN_ENABLED",delay=0.25,script="local found=GearRackUI.Buffs[\"Interface\\\\Icons\\\\Spell_Shadow_Requiem\"]\nif not GEARRACK_SPIRIT and found then\nEquipSet() GEARRACK_SPIRIT=1\nend\n--[[Equips a set when you leave combat with Spirit Tap. Associate a set of spirit gear to this event.]]"},
-	["Warrior:Overpower End"]={trigger="CHAT_MSG_COMBAT_SELF_MISSES",delay=5,script="--[[Equip a set five seconds after opponent dodged: your normal weapons. ]]\nif GEARRACK_OVERPOWER==1 then\nEquipSet()\nGEARRACK_OVERPOWER=nil\nend"},
-	["Warrior:Overpower Begin"]={trigger="CHAT_MSG_COMBAT_SELF_MISSES",delay=0,script="--[[Equip a set when the opponent dodges.  Associate a heavy-hitting 2h set with this event. ]]\nlocal _,_,i = GetShapeshiftFormInfo(1)\nif string.find(arg1 or \"\",\"^You.+dodge[sd]\") and i then\nEquipSet()\nGEARRACK_OVERPOWER=1\nend"},
-	["Eating-Drinking"]={trigger="GEARRACK_BUFFS_CHANGED",delay=0,script="local found=arg1[\"Interface\\\\Icons\\\\INV_Misc_Fork&Knife\"] or arg1[\"Drink\"]\nif not GEARRACK_DRINK and found then\nEquipSet() GEARRACK_DRINK=1\nelseif GEARRACK_DRINK and not found then\nLoadSet() GEARRACK_DRINK=nil\nend\n--[[Equips a set while eating or drinking.]]"},
-	["Priest:Spirit Tap End"]={trigger="GEARRACK_BUFFS_CHANGED",delay=0.5,script="local found=arg1[\"Interface\\\\Icons\\\\Spell_Shadow_Requiem\"]\nif GEARRACK_SPIRIT and not found then\nLoadSet() GEARRACK_SPIRIT = nil\nend\n--[[Returns to normal gear when Spirit Tap ends. Associate the same spirit set as Spirit Tap Begin.]]"},
-}
-
--- 1.0.0 Overpower templates read chat text; 1.1.0 uses GEARRACK_DODGED from the combat log.
-local chatTextDefaults = {
-	["Warrior:Overpower End"]={trigger="CHAT_MSG_COMBAT_SELF_MISSES",delay=5,script="--[[Equip a set five seconds after opponent dodged: your normal weapons. ]]\nif GEARRACK_OVERPOWER==1 then\nGearRack.EquipSet()\nGEARRACK_OVERPOWER=nil\nend"},
-	["Warrior:Overpower Begin"]={trigger="CHAT_MSG_COMBAT_SELF_MISSES",delay=0,script="--[[Equip a set when the opponent dodges.  Associate a heavy-hitting 2h set with this event. ]]\nlocal _,_,i = GetShapeshiftFormInfo(1)\nif string.find(arg1 or \"\",\"^You.+dodge[sd]\") and i then\nGearRack.EquipSet()\nGEARRACK_OVERPOWER=1\nend"},
-}
-
-function GearRackUI_MigrateDefaultEvents()
-	for _,defaults in ipairs({previousDefaults, chatTextDefaults}) do
-		for name,old in pairs(defaults) do
-			local saved=GearRackDB.events[name]
-			if type(saved)=="table" and saved.script==old.script and saved.trigger==old.trigger and saved.delay==old.delay then
-				saved.script=GearRackUI_DefaultEvents[name].script
-				saved.trigger=GearRackUI_DefaultEvents[name].trigger
-			end
-		end
-	end
-end

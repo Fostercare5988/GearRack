@@ -22,6 +22,120 @@ local function equippedGUID(slot)
     equipLocation.equipmentSlotIndex=slot
     return C_Item.GetItemGUID(equipLocation)
 end
+GearRack.BagGUID,GearRack.EquippedGUID = bagGUID,equippedGUID
+
+local EMPTY = {}
+local function index(map,key,entry)
+    local list=map[key]
+    if not list then list={};map[key]=list end
+    table.insert(list,entry)
+end
+
+-- Bars, sets and event choices are keyed per character.
+function GearRack.CharacterKey()
+    return UnitName("player").." of "..GetRealmName()
+end
+
+-- Rarity borders for item buttons, above common quality only.
+local qualityColors = {
+    [2]={.05,1,.15}, [3]={0,.7,1}, [4]={.85,.2,1}, [5]={1,.55,0}, [6]={.95,.85,.4},
+}
+local qualityBackdrops = {}
+function GearRack.SetQualityBorder(button,quality,edgeSize)
+    local border=button.qualityBorder
+    if type(quality)~="number" or quality<=1 then
+        if border then border:Hide() end
+        return
+    end
+    if not border then
+        local backdrop=qualityBackdrops[edgeSize]
+        if not backdrop then
+            backdrop={edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",tile=true,tileSize=8,
+                edgeSize=edgeSize,insets={left=0,right=0,top=0,bottom=0}}
+            qualityBackdrops[edgeSize]=backdrop
+        end
+        local name=button:GetName()
+        border=CreateFrame("Frame",name and name.."QualityBorder",button)
+        border:SetPoint("TOPLEFT",button,"TOPLEFT",-2,2)
+        border:SetPoint("BOTTOMRIGHT",button,"BOTTOMRIGHT",2,-2)
+        border:SetBackdrop(backdrop)
+        border:EnableMouse(false)
+        button.qualityBorder=border
+    end
+    if border.quality~=quality then
+        border.quality=quality
+        local c=qualityColors[quality]
+        if c then border:SetBackdropBorderColor(c[1],c[2],c[3],1)
+        else
+            local r,g,b=GetItemQualityColor(quality)
+            border:SetBackdropBorderColor(r,g,b,1)
+        end
+    end
+    border:SetFrameLevel(button:GetFrameLevel()+1)
+    border:Show()
+end
+
+-- One alert for every ready item: sound, screen and chat.
+function GearRack.Alert(text)
+    PlaySound("GnomeExploration")
+    if SHOW_COMBAT_TEXT=="1" then
+        CombatText_AddMessage(text,CombatText_StandardScroll,.2,.7,.9)
+    else
+        UIErrorsFrame:AddMessage(text,.2,.7,.9,1,UIERRORS_HOLD_TIME)
+    end
+    DEFAULT_CHAT_FRAME:AddMessage("|cff33b2e5"..text)
+end
+
+-- Cooldown numbers on item buttons. A short cooldown that starts on a blank
+-- button is the global cooldown and stays hidden.
+function GearRack.WriteCooldown(where,start,duration)
+    local previous=where:GetText() or ""
+    local text=""
+    local left=start>0 and duration-(GetTime()-start) or 0
+    if left>0 and not (left<3 and previous=="") then
+        text=(left<60 and tostring(math.floor(left+.5))) or (left<3600 and math.ceil(left/60).." m")
+            or math.ceil(left/3600).." h"
+    end
+    if previous~=text then where:SetText(text) end
+end
+
+-- Flyout placement against its source, keyed MainDock..MenuDock.
+-- x/yoff: menu offset from the source; x/ydir: direction items are added;
+-- x/ystart: first item's offset; mx/my: offset from the equipment bar's buttons.
+GearRack.DockStats = {
+    TOPRIGHTTOPLEFT       = { xoff=-4, yoff=0,  xdir=1,  ydir=-1, xstart=8,   ystart=-8, mx=3,  my=8 },
+    BOTTOMRIGHTBOTTOMLEFT = { xoff=-4, yoff=0,  xdir=1,  ydir=1,  xstart=8,   ystart=44, mx=3,  my=-8 },
+    TOPLEFTTOPRIGHT       = { xoff=4,  yoff=0,  xdir=-1, ydir=-1, xstart=-44, ystart=-8, mx=-2, my=8 },
+    BOTTOMLEFTBOTTOMRIGHT = { xoff=4,  yoff=0,  xdir=-1, ydir=1,  xstart=-44, ystart=44, mx=-2, my=-8 },
+    TOPRIGHTBOTTOMRIGHT   = { xoff=0,  yoff=-4, xdir=-1, ydir=1,  xstart=-44, ystart=44, mx=8,  my=3 },
+    BOTTOMRIGHTTOPRIGHT   = { xoff=0,  yoff=4,  xdir=-1, ydir=-1, xstart=-44, ystart=-8, mx=8,  my=-3 },
+    TOPLEFTBOTTOMLEFT     = { xoff=0,  yoff=-4, xdir=1,  ydir=1,  xstart=8,   ystart=44, mx=-8, my=2 },
+    BOTTOMLEFTTOPLEFT     = { xoff=0,  yoff=4,  xdir=1,  ydir=-1, xstart=8,   ystart=-8, mx=-8, my=-2 },
+}
+
+-- Add or remove a window from the game's Escape list.
+function GearRack.SetEscapable(name,escapable)
+    for i,frame in ipairs(UISpecialFrames) do
+        if frame==name then
+            if not escapable then table.remove(UISpecialFrames,i) end
+            return
+        end
+    end
+    if escapable then table.insert(UISpecialFrames,name) end
+end
+
+-- Rescale a frame anchored by its top-left corner without moving that corner.
+-- Returns the new corner, or nothing for an invalid scale.
+function GearRack.ScaleFrame(frame,scale,x,y)
+    scale=tonumber(scale)
+    if not scale or scale~=scale or scale<=0 or scale==math.huge then return end
+    local old=frame:GetScale() or 1
+    local left,top=(frame:GetLeft() or x)*old/scale,(frame:GetTop() or y)*old/scale
+    frame:SetScale(scale)
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT","UIParent","BOTTOMLEFT",left,top)
+    return left,top
+end
 
 -- Called at login, after the client has restored both SavedVariables roots.
 function GearRack.NormalizeSavedData()
@@ -31,8 +145,12 @@ function GearRack.NormalizeSavedData()
     for _,key in ipairs({"bars","settings","events","sets","trinketOptions"}) do
         if type(GearRackDB[key])~="table" then GearRackDB[key]={} end
     end
-    for key,value in pairs(GearRackUI.DefaultSettings or {}) do
+    for key,value in pairs(GearRackUI.DefaultSettings) do
         if GearRackDB.settings[key]==nil then GearRackDB.settings[key]=value end
+    end
+    -- Retired: the trinket window uses the shared tooltip, list and alert settings.
+    for _,key in ipairs({"TooltipFollow","ShowTooltips","MenuOnShift","Notify","NotifyThirty","NotifyChatAlso","HideOnLoad"}) do
+        GearRackDB.trinketOptions[key]=nil
     end
     if type(GearRackCharDB.KeepManualTrinkets)~="boolean" then GearRackCharDB.KeepManualTrinkets=true end
     if type(GearRackCharDB.HeldQueues)~="table" then GearRackCharDB.HeldQueues={} end
@@ -86,43 +204,40 @@ end
 function GearRack.RefreshInventory()
     if GearRack.initialized then GearRackEngine.StopTimer("GearInventory") end
     if GearRack.inventoryReady and not next(GearRack.DirtyBags) then return end
-    GearRack.Bags = GearRack.Bags or {}
-    GearRack.BagItemIDs = GearRack.BagItemIDs or {}
+    -- Entry and index tables are reused; callers copy what they keep.
     for bag in pairs(GearRack.DirtyBags) do
-        local entries,itemIDs = {},{}
+        local entries=GearRack.Bags[bag] or {}
+        local itemIDs=GearRack.BagItemIDs[bag] or {}
+        GearRack.Bags[bag],GearRack.BagItemIDs[bag]=entries,itemIDs
+        table.wipe(itemIDs)
+        local count=0
         for slot=1,GetContainerNumSlots(bag) do
             local texture,id,name,equipLoc,quality,rawID = GearRackEngine.GetItemInfo(bag,slot)
             local itemID=rawID or baseID(id)
             -- Occupied slots must remain discoverable even before link/static data is cached.
             if itemID then itemIDs[itemID]=true end
             if id then
-                local entry = {bag=bag,slot=slot,id=id,baseID=baseID(id),name=name,
-                    texture=texture,equipLoc=equipLoc,quality=quality}
-                entry.guid = bagGUID(bag,slot)
-                table.insert(entries,entry)
+                count=count+1
+                local entry=entries[count]
+                if not entry then entry={};entries[count]=entry end
+                entry.bag,entry.slot,entry.id,entry.baseID,entry.name=bag,slot,id,baseID(id),name
+                entry.texture,entry.equipLoc,entry.quality=texture,equipLoc,quality
+                entry.guid=bagGUID(bag,slot)
             end
         end
-        GearRack.Bags[bag]=entries
-        GearRack.BagItemIDs[bag]=itemIDs
+        for i=#entries,count+1,-1 do entries[i]=nil end
         GearRack.DirtyBags[bag]=nil
     end
     table.wipe(GearRack.Items)
-    table.wipe(GearRack.ByID)
-    table.wipe(GearRack.ByName)
+    for _,list in pairs(GearRack.ByID) do table.wipe(list) end
+    for _,list in pairs(GearRack.ByName) do table.wipe(list) end
     table.wipe(GearRack.ByGUID)
     for bag=0,4 do
-        for _,entry in ipairs(GearRack.Bags[bag] or {}) do
+        for _,entry in ipairs(GearRack.Bags[bag] or EMPTY) do
             table.insert(GearRack.Items,entry)
-            for _,key in ipairs({entry.id,entry.baseID}) do
-                local list=GearRack.ByID[key] or {}
-                GearRack.ByID[key]=list
-                table.insert(list,entry)
-            end
-            if entry.name then
-                local list=GearRack.ByName[entry.name] or {}
-                GearRack.ByName[entry.name]=list
-                table.insert(list,entry)
-            end
+            index(GearRack.ByID,entry.id,entry)
+            index(GearRack.ByID,entry.baseID,entry)
+            if entry.name then index(GearRack.ByName,entry.name,entry) end
             if entry.guid then GearRack.ByGUID[entry.guid]=entry end
         end
     end
@@ -136,24 +251,22 @@ end
 
 -- Broad inventory notifications include instance-state changes. Compare identity
 -- before invalidating carried locations; equal item IDs can be different copies.
+local equippedSlotIDs,equippedGUIDs={},{}
 function GearRack.RefreshEquippedItemIDs()
-    GearRack.EquippedItemIDs=GearRack.EquippedItemIDs or {}
-    GearRack.BagContainerIDs=GearRack.BagContainerIDs or {}
-    local changed=not GearRack.EquippedGUIDs
-    GearRack.EquippedGUIDs=GearRack.EquippedGUIDs or {}
-    GearRack.EquippedSlotIDs=GearRack.EquippedSlotIDs or {}
+    local changed=not GearRack.equippedRead
+    GearRack.equippedRead=true
     table.wipe(GearRack.EquippedItemIDs)
     table.wipe(GearRack.BagContainerIDs)
     for slot=1,23 do
         local itemID=GetInventoryItemID("player",slot)
-        if GearRack.EquippedSlotIDs[slot]~=itemID then changed=true end
-        GearRack.EquippedSlotIDs[slot]=itemID
-        if slot>=1 and slot<=19 then
+        if equippedSlotIDs[slot]~=itemID then changed=true end
+        equippedSlotIDs[slot]=itemID
+        if slot<=19 then
             local guid=equippedGUID(slot)
-            if GearRack.EquippedGUIDs[slot]~=guid then changed=true end
-            GearRack.EquippedGUIDs[slot]=guid
+            if equippedGUIDs[slot]~=guid then changed=true end
+            equippedGUIDs[slot]=guid
             if itemID and itemID>0 then GearRack.EquippedItemIDs[itemID]=true end
-        elseif slot>=20 then GearRack.BagContainerIDs[slot-19]=itemID end
+        else GearRack.BagContainerIDs[slot-19]=itemID end
     end
     return changed
 end
@@ -165,14 +278,14 @@ function GearRack.ItemDataReceived(itemID,success)
     if not success or not itemID then return end
     local changed
     for bag=0,4 do
-        if (GearRack.BagItemIDs and GearRack.BagItemIDs[bag] and GearRack.BagItemIDs[bag][itemID])
-            or (GearRack.BagContainerIDs and GearRack.BagContainerIDs[bag]==itemID) then
+        if (GearRack.BagItemIDs[bag] and GearRack.BagItemIDs[bag][itemID])
+            or GearRack.BagContainerIDs[bag]==itemID then
             GearRack.InvalidateBag(bag)
             changed=true
         end
     end
-    local bank=GearRackUI.BankIsOpen and GearRackUI.BankItemIDs and GearRackUI.BankItemIDs[itemID]
-    return changed or (GearRack.EquippedItemIDs and GearRack.EquippedItemIDs[itemID]) or bank,bank
+    local bank=GearRackUI.BankIsOpen and GearRackUI.BankItemIDs[itemID]
+    return changed or GearRack.EquippedItemIDs[itemID] or bank,bank
 end
 
 function GearRack.GetCarriedItems()
@@ -184,10 +297,14 @@ local function matches(entry,id,name)
     return (id and (entry.id==id or entry.baseID==id)) or (not id and entry.name==name)
 end
 
+-- Lookup scratch: one GUID match, and the equipped-slot result callers copy.
+local byGUID,worn={},{}
 function GearRack.FindLocation(id,name,passive,includeInventory,guid)
     GearRack.GetCarriedItems()
-    local list = guid and {GearRack.ByGUID[guid]} or (id and GearRack.ByID[id] or GearRack.ByName[name])
-    for _,entry in ipairs(list or {}) do
+    local list
+    if guid then byGUID[1]=GearRack.ByGUID[guid];list=byGUID
+    else list=id and GearRack.ByID[id] or GearRack.ByName[name] end
+    for _,entry in ipairs(list or EMPTY) do
         if (passive or not GearRackEngine.LockList[entry.bag][entry.slot]) and matches(entry,id,name) then
             local _,liveID=GearRackEngine.GetItemInfo(entry.bag,entry.slot)
             if liveID==entry.id and (not guid or bagGUID(entry.bag,entry.slot)==guid) then
@@ -200,27 +317,20 @@ function GearRack.FindLocation(id,name,passive,includeInventory,guid)
         for slot=0,19 do
             if passive or not GearRackEngine.LockList[-2][slot] then
                 local texture,liveID,liveName,equipLoc,quality=GearRackEngine.GetItemInfo(slot)
-                local entry={id=liveID,baseID=baseID(liveID),name=liveName,texture=texture,
-                    equipLoc=equipLoc,quality=quality,inv=slot}
-                if slot>0 then entry.guid=equippedGUID(slot) end
-                if matches(entry,id,name) and (not guid or entry.guid==guid) then return slot,nil,nil,entry end
+                worn.id,worn.baseID,worn.name,worn.texture=liveID,baseID(liveID),liveName,texture
+                worn.equipLoc,worn.quality,worn.inv=equipLoc,quality,slot
+                worn.guid=slot>0 and equippedGUID(slot) or nil
+                if matches(worn,id,name) and (not guid or worn.guid==guid) then return slot,nil,nil,worn end
             end
         end
     end
 end
 
--- One trinket watcher, one message per transition. Retain equipment-bar
--- notification preferences for items actually used through the shared hook.
-function GearRack.TrinketReady(name,soon)
-    local watched=GearRackTrinkets.WatchItem[name]
-    if watched and watched.rackUsed and GearRackDB.settings.Notify=="ON"
-        and (soon==(GearRackDB.settings.NotifyThirty=="ON")) then
+-- A used item is ready (soon: 30 seconds left). Notify at 30 replaces the
+-- ready message; both go through the equipment notifier and its event.
+function GearRack.ItemReady(name,soon)
+    if GearRackDB.settings.Notify=="ON" and soon==(GearRackDB.settings.NotifyThirty=="ON") then
         GearRackUI_Notify(name)
-        watched.rackUsed=nil
-        return
-    end
-    if (soon and GearRackDB.trinketOptions.NotifyThirty=="ON") or (not soon and GearRackDB.trinketOptions.Notify=="ON") then
-        GearRackTrinkets.Notify(name..(soon and " ready soon!" or " ready!"))
     end
 end
 

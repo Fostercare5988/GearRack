@@ -1,5 +1,5 @@
 -- GearRack. Engine extensions are DLLs, not addon Dependencies.
-GearRack = {version="1.1.0", enabled=false}
+GearRack = {version="1.0.0", enabled=false}
 local _,_,superMajor,superMinor=string.find(tostring(SUPERWOW_VERSION or ""),"^(%d+)%.(%d+)")
 superMajor,superMinor=tonumber(superMajor),tonumber(superMinor)
 local failure
@@ -26,6 +26,10 @@ end
 GearRack.enabled=true
 GearRack.Requests={}
 GearRack.DirtyBags={}
+GearRack.Bags={}
+GearRack.BagItemIDs={}
+GearRack.EquippedItemIDs={}
+GearRack.BagContainerIDs={}
 GearRack.Items={}
 GearRack.ByID={}
 GearRack.ByName={}

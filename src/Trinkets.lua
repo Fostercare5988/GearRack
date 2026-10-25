@@ -12,16 +12,10 @@ function GearRackTrinkets.LoadDefaults()
 		TooltipFollow = "OFF",		-- whether tooltips follow the mouse
 		KeepOpen = "OFF",			-- whether menu hides after use
 		KeepDocked = "ON",			-- whether to keep menu docked at all times
-		Notify = "OFF",				-- whether a message appears when a trinket is ready
-		NotifyChatAlso="OFF",		-- whether to send notify to chat also
 		Locked = "OFF",				-- whether windows can be moved/scaled/rotated
-		ShowTooltips = "ON",		-- whether to display tooltips at all
-		NotifyThirty = "OFF",		-- whether to notify cooldowns at 30 seconds instead of 0
-		MenuOnShift = "OFF",		-- whether menu requires Shift to display
 		SetColumns = "OFF",			-- whether number of columns in menu is chosen automatically
 		Columns = 4,				-- if SetColumns "ON", number of columns before menu wraps
 		ShowHotKeys = "ON",		-- whether hotkeys show on trinkets
-		HideOnLoad = "OFF",
 		StopOnSwap = "OFF"			-- whether to stop auto queue on all manual swaps
 	}
 
@@ -35,7 +29,7 @@ function GearRackTrinkets.LoadDefaults()
 		MainScale = 1,				-- scaling of main window
 		MenuScale = 1,				-- scaling of menu window
 		Visible="ON",				-- whether to display the trinkets
-		ItemsUsed = {},				-- table of trinkets used and their cooldown status
+		ItemsUsed = {},				-- [itemID] = cooldown watch state of a used trinket
 	}
 	GearRackDB.trinketOptions = type(GearRackDB.trinketOptions)=="table" and GearRackDB.trinketOptions or {}
 	GearRackCharDB.trinkets = type(GearRackCharDB.trinkets)=="table" and GearRackCharDB.trinkets or {}
@@ -64,14 +58,14 @@ function GearRackTrinkets.LoadDefaults()
 	end
 	if per.Visible~="ON" and per.Visible~="OFF" then per.Visible=displayDefaults.Visible end
 	per.ItemsUsed = type(per.ItemsUsed)=="table" and per.ItemsUsed or {}
-	for name, count in pairs(per.ItemsUsed) do
-		if type(name)~="string" or number(count, -1, 0)==-1 then
-			per.ItemsUsed[name] = nil
+	for id, count in pairs(per.ItemsUsed) do
+		if type(id)~="number" or number(count, -1, 0)==-1 then
+			per.ItemsUsed[id] = nil
 		else
-			per.ItemsUsed[name] = tonumber(count)
+			per.ItemsUsed[id] = tonumber(count)
 		end
 	end
-	if not GearRackTrinkets.DockStats[tostring(per.MainDock or "")..tostring(per.MenuDock or "")] then
+	if not GearRack.DockStats[tostring(per.MainDock or "")..tostring(per.MenuDock or "")] then
 		per.MainDock, per.MenuDock = "BOTTOMRIGHT", "BOTTOMLEFT"
 	end
 
@@ -79,99 +73,18 @@ end
 
 --[[ Misc Variables ]]--
 
-GearRackTrinkets_Version = GearRack.version
-
 GearRackTrinkets.MaxTrinkets = 30 -- add more to GearRackTrinkets_MenuFrame if this changes
 GearRackTrinkets.BaggedTrinkets = {} -- indexed by number, 1-30 of trinkets in the menu
 GearRackTrinkets.NumberOfTrinkets = 0 -- number of trinkets in the menu
 GearRackTrinkets.CombatQueue = {} -- [0] or [1] = name of trinket queued for slot 0 or 1
 GearRackTrinkets.QueueItemIDs = {} -- runtime identities; names remain display/API input
 GearRackTrinkets.Corners = { "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }
-GearRackTrinkets.WatchItem = {} -- table of items being watched for cooldowns
-
--- Modern Rarity Borders
-local QUALITY_BORDER_BACKDROP = {
-	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-	tile = true,
-	tileSize = 8,
-	edgeSize = 12,
-	insets = { left = 0, right = 0, top = 0, bottom = 0 }
-}
-
-local ENHANCED_QUALITY_COLORS = {
-	[2] = { r = 0.05, g = 1.00, b = 0.15 }, -- Vibrant Emerald Green
-	[3] = { r = 0.00, g = 0.70, b = 1.00 }, -- Radiant Electric Sky Blue
-	[4] = { r = 0.85, g = 0.20, b = 1.00 }, -- Vivid Neon Purple / Magenta
-	[5] = { r = 1.00, g = 0.55, b = 0.00 }, -- Flaming Orange
-	[6] = { r = 0.95, g = 0.85, b = 0.40 }, -- Radiant Gold
-}
-
-local function GetBorderQualityColor(quality)
-	local color = ENHANCED_QUALITY_COLORS[quality]
-	if color then
-		return color.r, color.g, color.b
-	end
-	return GetItemQualityColor(quality)
-end
-
-local function get_or_create_quality_border(btn)
-	if not btn then return nil end
-	if not btn.qualityBorder then
-		local name = btn:GetName()
-		local qBorder = CreateFrame("Frame", name and (name .. "QualityBorder") or nil, btn)
-		qBorder:SetPoint("TOPLEFT", btn, "TOPLEFT", -2, 2)
-		qBorder:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 2, -2)
-		qBorder:SetBackdrop(QUALITY_BORDER_BACKDROP)
-		qBorder:EnableMouse(false)
-		if btn.GetFrameLevel then
-			qBorder:SetFrameLevel(btn:GetFrameLevel() + 1)
-		end
-		qBorder:Hide()
-		btn.qualityBorder = qBorder
-	end
-	return btn.qualityBorder
-end
-
-local function apply_trinket_quality_border(btn, quality)
-	if not btn then return end
-	local qBorder = get_or_create_quality_border(btn)
-	if not qBorder then return end
-
-	if type(quality) == "number" and quality > 1 then
-		local r, g, b = GetBorderQualityColor(quality)
-		qBorder:SetBackdropBorderColor(r, g, b, 1.0)
-		if btn.GetFrameLevel then
-			qBorder:SetFrameLevel(btn:GetFrameLevel() + 1)
-		end
-		qBorder:Show()
-	else
-		qBorder:Hide()
-	end
-end
-
---[[ Local functions ]]--
-
--- dock-dependant offset and directions: MainDock..MenuDock
--- x/yoff   = offset MenuFrame is positioned to MainFrame
--- x/ydir   = direction trinkets are added to menu
--- x/ystart = starting offset when building a menu, relativePoint MenuDock
-GearRackTrinkets.DockStats = { ["TOPRIGHTTOPLEFT"] =		 { xoff=-4, yoff=0,  xdir=1,  ydir=-1, xstart=8,   ystart=-8 },
-					 ["BOTTOMRIGHTBOTTOMLEFT"] = { xoff=-4, yoff=0,  xdir=1,  ydir=1,  xstart=8,   ystart=44 },
-					 ["TOPLEFTTOPRIGHT"] =		 { xoff=4,  yoff=0,  xdir=-1, ydir=-1, xstart=-44, ystart=-8 },
-					 ["BOTTOMLEFTBOTTOMRIGHT"] = { xoff=4,  yoff=0,  xdir=-1, ydir=1,  xstart=-44, ystart=44 },
-					 ["TOPRIGHTBOTTOMRIGHT"] =   { xoff=0,  yoff=-4, xdir=-1, ydir=1,  xstart=-44,  ystart=44 },
-					 ["BOTTOMRIGHTTOPRIGHT"] =   { xoff=0,  yoff=4,	 xdir=-1, ydir=-1, xstart=-44,  ystart=-8 },
-					 ["TOPLEFTBOTTOMLEFT"] =	 { xoff=0,  yoff=-4, xdir=1,  ydir=1,  xstart=8,   ystart=44 },
-					 ["BOTTOMLEFTTOPLEFT"] =	 { xoff=0,  yoff=4,  xdir=1,  ydir=-1, xstart=8,   ystart=-8 } }
+GearRackTrinkets.WatchItem = {} -- [itemID] = {inv=, bag=, slot=} last seen location
 
 -- returns offset and direction depending on current docking. ie: GearRackTrinkets.DockInfo("xoff")
 function GearRackTrinkets.DockInfo(arg1)
-	local anchor = GearRackCharDB.trinkets.MainDock..GearRackCharDB.trinkets.MenuDock
-	if GearRackTrinkets.DockStats[anchor] and arg1 and GearRackTrinkets.DockStats[anchor][arg1] then
-		return GearRackTrinkets.DockStats[anchor][arg1]
-	else
-		return 0
-	end
+	local stats = GearRack.DockStats[GearRackCharDB.trinkets.MainDock..GearRackCharDB.trinkets.MenuDock]
+	return stats and stats[arg1] or 0
 end
 
 -- hide the docking markers
@@ -217,20 +130,20 @@ end
 -- scan inventory and build MenuFrame
 function GearRackTrinkets.BuildMenu()
 
-	if not IsShiftKeyDown() and GearRackDB.trinketOptions.MenuOnShift=="ON" then
+	if not IsShiftKeyDown() and GearRackDB.settings.MenuShift=="ON" then
 		return
 	end
 
-	local idx,i,j,k,texture = 1
-	local itemLink,itemID,itemName,equipSlot,itemTexture
-
-    for _,entry in ipairs(GearRack.GetCarriedItems()) do
-        if entry.equipLoc=="INVTYPE_TRINKET" then
-            GearRackTrinkets.BaggedTrinkets[idx]={bag=entry.bag,slot=entry.slot,name=entry.name,
-                texture=entry.texture,quality=entry.quality,id=entry.baseID,guid=entry.guid}
-            idx=idx+1
-        end
-    end
+	local idx = 1
+	for _,entry in ipairs(GearRack.GetCarriedItems()) do
+		if entry.equipLoc=="INVTYPE_TRINKET" and idx<=GearRackTrinkets.MaxTrinkets then
+			local trinket = GearRackTrinkets.BaggedTrinkets[idx] or {}
+			GearRackTrinkets.BaggedTrinkets[idx] = trinket
+			trinket.bag,trinket.slot,trinket.name,trinket.texture = entry.bag,entry.slot,entry.name,entry.texture
+			trinket.quality,trinket.id,trinket.guid = entry.quality,entry.baseID,entry.guid
+			idx=idx+1
+		end
+	end
 	GearRackTrinkets.NumberOfTrinkets = math.min(idx-1,GearRackTrinkets.MaxTrinkets)
 
 	if GearRackTrinkets.NumberOfTrinkets<1 then
@@ -257,7 +170,7 @@ function GearRackTrinkets.BuildMenu()
 		for i=1,GearRackTrinkets.NumberOfTrinkets do
 			local item = getglobal("GearRackTrinkets_Menu"..i)
 			getglobal("GearRackTrinkets_Menu"..i.."Icon"):SetTexture(GearRackTrinkets.BaggedTrinkets[i].texture)
-			apply_trinket_quality_border(item, GearRackTrinkets.BaggedTrinkets[i].quality)
+			GearRack.SetQualityBorder(item, GearRackTrinkets.BaggedTrinkets[i].quality, 12)
 			item:SetPoint("TOPLEFT","GearRackTrinkets_MenuFrame",GearRackCharDB.trinkets.MenuDock,xpos,ypos)
 
 			if GearRackCharDB.trinkets.MenuOrient=="VERTICAL" then
@@ -283,13 +196,7 @@ function GearRackTrinkets.BuildMenu()
 			end
 		end
 		for i=(GearRackTrinkets.NumberOfTrinkets+1),GearRackTrinkets.MaxTrinkets do
-			local mBtn = getglobal("GearRackTrinkets_Menu"..i)
-			if mBtn then
-				mBtn:Hide()
-				if mBtn.qualityBorder then
-					mBtn.qualityBorder:Hide()
-				end
-			end
+			getglobal("GearRackTrinkets_Menu"..i):Hide()
 		end
 		if col==0 then
 			row = row-1
@@ -328,16 +235,11 @@ function GearRackTrinkets.Initialize()
 	GearRackTrinkets.CreateTimer("TooltipUpdate",GearRackTrinkets.TooltipUpdate,1,1)
 	GearRackTrinkets.CreateTimer("CooldownUpdate",GearRackTrinkets.CooldownUpdate,1,1)
 
-	-- Rule C8: Child Cooldown Mouse Passthrough
-	local cd0 = GearRackTrinkets_Trinket0Cooldown
-	if cd0 and cd0.EnableMouse then cd0:EnableMouse(false) end
-	local cd1 = GearRackTrinkets_Trinket1Cooldown
-	if cd1 and cd1.EnableMouse then cd1:EnableMouse(false) end
-	for i = 1, 30 do
-		local mcd = getglobal("GearRackTrinkets_Menu" .. i .. "Cooldown")
-		if mcd and mcd.EnableMouse then
-			mcd:EnableMouse(false)
-		end
+	-- Cooldown spirals pass clicks to their buttons.
+	GearRackTrinkets_Trinket0Cooldown:EnableMouse(false)
+	GearRackTrinkets_Trinket1Cooldown:EnableMouse(false)
+	for i = 1, GearRackTrinkets.MaxTrinkets do
+		getglobal("GearRackTrinkets_Menu" .. i .. "Cooldown"):EnableMouse(false)
 	end
 
 	GearRackTrinkets.InitOptions()
@@ -352,20 +254,6 @@ function GearRackTrinkets.Initialize()
 	end
 end
 
--- returns true if the player is really dead or ghost, not merely FD
-function GearRackTrinkets.IsPlayerReallyDead() return GearRackEngine.IsPlayerReallyDead() end
-
-function GearRackTrinkets.ItemInfo(slot)
-	local link,id,name,equipLoc,texture = GetInventoryItemLink("player",slot)
-	if link then
-		local _,_,id = string.find(link,"item:(%d+)")
-		name,_,_,_,_,_,_,equipLoc,texture = GetItemInfo(id)
-	else
-		_,texture = GetInventorySlotInfo("Trinket"..(slot-13).."Slot")
-	end
-	return texture,name,equipLoc
-end
-
 -- IDs select queue items; name-only macro inputs require an exact name.
 function GearRackTrinkets.FindItem(name,includeInventory,itemID)
     return GearRack.FindLocation(tonumber(itemID),name,true,includeInventory)
@@ -374,35 +262,18 @@ end
 --[[ Frame Scripts ]]--
 
 function GearRackTrinkets.UpdateWornTrinkets()
-	GearRackTrinkets_Trinket0Icon:SetTexture(GearRackTrinkets.ItemInfo(13))
-	GearRackTrinkets_Trinket1Icon:SetTexture(GearRackTrinkets.ItemInfo(14))
-	GearRackTrinkets_Trinket0Icon:SetDesaturated(0)
-	GearRackTrinkets_Trinket0:SetChecked(0)
-	GearRackTrinkets_Trinket1Icon:SetDesaturated(0)
-	GearRackTrinkets_Trinket1:SetChecked(0)
-
-	local q0 = GetInventoryItemQuality("player", 13)
-	if not q0 then
-		local l0 = GetInventoryItemLink("player", 13)
-		if l0 then local _, _, q = GetItemInfo(l0); q0 = q end
+	for which=0,1 do
+		local slot = 13+which
+		local button = getglobal("GearRackTrinkets_Trinket"..which)
+		local icon = getglobal("GearRackTrinkets_Trinket"..which.."Icon")
+		icon:SetTexture((GearRackEngine.GetItemInfo(slot)))
+		icon:SetDesaturated(nil)
+		button:SetChecked(0)
+		GearRack.SetQualityBorder(button, GetInventoryItemQuality("player", slot), 12)
+		local itemID = GetInventoryItemID("player", slot)
+		if itemID then GearRackTrinkets.AddWatchItem(itemID, slot) end
 	end
-	apply_trinket_quality_border(GearRackTrinkets_Trinket0, q0)
-
-	local q1 = GetInventoryItemQuality("player", 14)
-	if not q1 then
-		local l1 = GetInventoryItemLink("player", 14)
-		if l1 then local _, _, q = GetItemInfo(l1); q1 = q end
-	end
-	apply_trinket_quality_border(GearRackTrinkets_Trinket1, q1)
-
 	GearRackTrinkets.UpdateWornCooldowns()
-	local name
-	for i=13,14 do
-		_,_,name = string.find(GetInventoryItemLink("player",i) or "","%[(.+)%]")
-		if name then
-			GearRackTrinkets.AddWatchItem(name,i)
-		end
-	end
 	if GearRackTrinkets_MenuFrame:IsVisible() then
 		GearRackTrinkets.BuildMenu()
 	end
@@ -418,7 +289,7 @@ function GearRackTrinkets.SlashHandler(msg)
 	msg = msg or ""
 	local _,_,command,which,profile = string.find(msg,"^%s*(%S+)%s+(%S+)%s+(.+)$")
 
-	if string.lower(command or "")=="load" and profile and GearRackTrinkets.SetQueue then
+	if string.lower(command or "")=="load" and profile then
 		profile = string.gsub(profile,"%s+$","")
 		which = string.lower(which)
 		if which=="top" or which=="0" then
@@ -460,26 +331,15 @@ function GearRackTrinkets.SlashHandler(msg)
 			GearRackTrinkets.ScaleFrame(mainscale)
 		end
 		if not tonumber(menuscale) and not tonumber(mainscale) then
-			DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00GearRackTrinkets scale:")
-			DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets scale main (number) : set exact main scale")
-			DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets scale menu (number) : set exact menu scale")
-			DEFAULT_CHAT_FRAME:AddMessage("ie, /gr trinkets scale menu 0.85")
-			DEFAULT_CHAT_FRAME:AddMessage("Note: You can drag the lower-right corner of either window to scale.  This slash command is for those who want to set an exact scale.")
+			DEFAULT_CHAT_FRAME:AddMessage("GearRack: /gr trinkets scale main 0.85 (or menu 0.85). Dragging a window's corner also scales it.")
 		end
 		GearRackTrinkets.FrameToScale = nil
 		GearRackCharDB.trinkets.MainScale = GearRackTrinkets_MainFrame:GetScale()
 		GearRackCharDB.trinkets.MenuScale = GearRackTrinkets_MenuFrame:GetScale()
 	elseif string.find(msg,"load") then
-		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00GearRackTrinkets load:")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets load (top|bottom) profilename\nie: /gr trinkets load bottom PvP")
+		DEFAULT_CHAT_FRAME:AddMessage("GearRack: /gr trinkets load top|bottom <profile>")
 	else
-		DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00GearRackTrinkets usage:")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets : toggle trinket buttons")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets reset : reset trinket settings, positions and profiles (confirmation)")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets opt : summon options window")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets lock|unlock : toggles window lock")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets scale main|menu (number) : sets an exact scale")
-		DEFAULT_CHAT_FRAME:AddMessage("/gr trinkets load top|bottom profilename : loads a profile to top or bottom trinket")
+		DEFAULT_CHAT_FRAME:AddMessage("GearRack trinkets: /gr trinkets [opt | lock | unlock | reset | scale main|menu <n> | load top|bottom <profile>]")
 	end
 end
 
@@ -540,7 +400,7 @@ function GearRackTrinkets.MainTrinket_OnClick()
 	if IsShiftKeyDown() and ChatFrameEditBox:IsVisible() then
 		this:SetChecked(0)
 		ChatFrameEditBox:Insert(GetInventoryItemLink("player",this:GetID()))
-	elseif IsAltKeyDown() and GearRackTrinkets.QueueInit then
+	elseif IsAltKeyDown() then
 		local which = this:GetID()-13
 		local held = GearRackCharDB.HeldQueues[which] or GearRackTrinkets.PausedQueue[which]
 		GearRack.ResumeTrinketQueue(which)
@@ -552,10 +412,8 @@ function GearRackTrinkets.MainTrinket_OnClick()
 		else
 			GearRackCharDB.queues.Enabled[which] = 1
 		end
---		GearRackCharDB.queues.Enabled[which] = not GearRackCharDB.queues.Enabled[which]
 		GearRackTrinkets.ReflectQueueEnabled()
 		GearRackTrinkets.UpdateCombatQueue()
-		-- toggle queue
 	elseif arg1=="RightButton" then
 		this:SetChecked(0)
 		GearRack.OpenTrinketPriorities(this:GetID())
@@ -572,13 +430,11 @@ function GearRackTrinkets.MenuTrinket_OnClick()
 		local slot = (arg1=="LeftButton") and 13 or 14
 		local chosen=GearRackTrinkets.BaggedTrinkets[this:GetID()]
 		local _,liveID=GearRackEngine.GetItemInfo(chosen.bag,chosen.slot)
-		if C_Item.GetItemGUID({bagID=chosen.bag,slotIndex=chosen.slot})~=chosen.guid then GearRack.InvalidateBag(chosen.bag);return end
-		if GearRackTrinkets.QueueInit then
-			local _,_,canCooldown = GetContainerItemCooldown(GearRackTrinkets.BaggedTrinkets[this:GetID()].bag,GearRackTrinkets.BaggedTrinkets[this:GetID()].slot)
-			if canCooldown==0 or GearRackDB.trinketOptions.StopOnSwap=="ON" then -- if incoming trinket can't go on cooldown
-				GearRackCharDB.queues.Enabled[slot-13]=nil -- turn off autoqueue
-				GearRackTrinkets.ReflectQueueEnabled()
-			end
+		if GearRack.BagGUID(chosen.bag,chosen.slot)~=chosen.guid then GearRack.InvalidateBag(chosen.bag);return end
+		local _,_,canCooldown = GetContainerItemCooldown(chosen.bag,chosen.slot)
+		if canCooldown==0 or GearRackDB.trinketOptions.StopOnSwap=="ON" then -- a trinket without a use stops the queue
+			GearRackCharDB.queues.Enabled[slot-13]=nil
+			GearRackTrinkets.ReflectQueueEnabled()
 		end
 		GearRack.RequestItem(slot,{id=liveID,name=chosen.name,texture=chosen.texture,guid=chosen.guid},nil,true)
 		if not IsShiftKeyDown() and GearRackDB.trinketOptions.KeepOpen=="OFF" then
@@ -704,21 +560,16 @@ function GearRackTrinkets.StopScalingFrame(frame)
 end
 
 function GearRackTrinkets.ScaleFrame(scale)
-	scale = tonumber(scale)
-	if not scale or scale~=scale or scale<=0 or scale==math.huge then return end
 	local frame = GearRackTrinkets.FrameToScale
-	local oldscale = frame:GetScale() or 1
-	local framex = (frame:GetLeft() or GearRackCharDB.trinkets.XPos)* oldscale
-	local framey = (frame:GetTop() or GearRackCharDB.trinkets.YPos)* oldscale
-
-	frame:SetScale(scale)
-	if frame:GetName() == "GearRackTrinkets_MainFrame" then
-		GearRackTrinkets_MainFrame:SetPoint("TOPLEFT","UIParent","BOTTOMLEFT",framex/scale,framey/scale)
-		GearRackCharDB.trinkets.XPos = GearRackTrinkets_MainFrame:GetLeft()
-		GearRackCharDB.trinkets.YPos = GearRackTrinkets_MainFrame:GetTop()
+	if frame==GearRackTrinkets_MainFrame then
+		local x,y = GearRack.ScaleFrame(frame,scale,GearRackCharDB.trinkets.XPos,GearRackCharDB.trinkets.YPos)
+		if x then GearRackCharDB.trinkets.XPos, GearRackCharDB.trinkets.YPos = x, y end
 	elseif GearRackDB.trinketOptions.KeepDocked=="OFF" then
-		GearRackTrinkets_MenuFrame:ClearAllPoints()
-		GearRackTrinkets_MenuFrame:SetPoint("TOPLEFT","UIParent","BOTTOMLEFT",framex/scale,framey/scale)
+		GearRack.ScaleFrame(frame,scale)
+	else
+		-- A docked menu keeps its anchor to the trinket buttons.
+		scale = tonumber(scale)
+		if scale and scale>0 and scale~=math.huge then frame:SetScale(scale) end
 	end
 end
 
@@ -760,17 +611,13 @@ end
 
 --[[ Item use ]]
 
--- Compatibility entry point: item-use identity and hooks have one owner.
-function GearRackTrinkets.OnUseAction(slot) GearRackUI.OnUseAction(slot) end
-
 function GearRackTrinkets.ReflectTrinketUse(slot)
 	getglobal("GearRackTrinkets_Trinket"..(slot-13)):SetChecked(1)
 	GearRackTrinkets.StartTimer("UpdateWornTrinkets")
-	local _,_,id,trinket = string.find(GetInventoryItemLink("player",slot) or "","item:(%d+).+%[(.+)%]")
-	if trinket then
-		GearRackCharDB.trinkets.ItemsUsed[trinket] = 0 -- 0 is an indeterminate state, cooldown will figure if it's worth watching
-		GearRackTrinkets.AddWatchItem(trinket,slot)
-		GearRackTrinkets.WatchItem[trinket].rackUsed=GearRackDB.settings.Notify=="ON" or nil
+	local itemID = GetInventoryItemID("player",slot)
+	if itemID then
+		GearRackCharDB.trinkets.ItemsUsed[itemID] = 0 -- 0: not yet known whether a real cooldown started
+		GearRackTrinkets.AddWatchItem(itemID,slot)
 	end
 end
 
@@ -778,7 +625,7 @@ end
 
 function GearRackTrinkets.WornTrinketTooltip()
 	local id = this:GetID()
-	if GearRackTrinkets.IsTimerActive("Scaling") or GearRackDB.trinketOptions.ShowTooltips=="OFF" then
+	if GearRackTrinkets.IsTimerActive("Scaling") or GearRackDB.settings.ShowTooltips=="OFF" then
 		return
 	end
 	GearRackTrinkets.TooltipOwner = this
@@ -791,7 +638,7 @@ end
 
 function GearRackTrinkets.MenuTrinketTooltip()
 	local id = this:GetID()
-	if GearRackTrinkets.IsTimerActive("Scaling") or GearRackDB.trinketOptions.ShowTooltips=="OFF" then
+	if GearRackTrinkets.IsTimerActive("Scaling") or GearRackDB.settings.ShowTooltips=="OFF" then
 		return
 	end
 	GearRackTrinkets.TooltipOwner = this
@@ -822,7 +669,7 @@ end
 
 function GearRackTrinkets.AnchorTooltip(owner)
 	owner = owner or this
-	if GearRackDB.trinketOptions.TooltipFollow=="ON" then
+	if GearRackDB.settings.TooltipFollow=="ON" then
 		if owner.GetLeft and owner:GetLeft() and owner:GetLeft()<400 then
 			GameTooltip:SetOwner(owner,"ANCHOR_RIGHT")
 		else
@@ -869,7 +716,7 @@ end
 
 -- normal tooltip for options
 function GearRackTrinkets.OnTooltip(line1,line2)
-	if GearRackDB.trinketOptions.ShowTooltips=="ON" then
+	if GearRackDB.settings.ShowTooltips=="ON" then
 		GearRackTrinkets.AnchorTooltip()
 		if line1 then
 			GameTooltip:AddLine(line1)
@@ -878,7 +725,7 @@ function GearRackTrinkets.OnTooltip(line1,line2)
 		else
 			local name = this:GetName() or ""
 			for i=1,#GearRackTrinkets.CheckOptInfo do
-				if name=="GearRackTrinkets_Opt"..GearRackTrinkets.CheckOptInfo[i][1] and GearRackTrinkets.CheckOptInfo[i][3] then
+				if name=="GearRackTrinkets_Opt"..GearRackTrinkets.CheckOptInfo[i][1] then
 					GearRackTrinkets.OnTooltip(GearRackTrinkets.CheckOptInfo[i][3],GearRackTrinkets.CheckOptInfo[i][4])
 				end
 			end
@@ -904,15 +751,6 @@ function GearRackTrinkets.GetQueuedSlotForItem(link)
 	end
 end
 
-function GearRackTrinkets.EquipTrinketByName(name,slot,itemID,automatic)
-    if slot~=13 and slot~=14 then return end
-    local _,_,_,entry=GearRack.FindLocation(tonumber(itemID),name,true,true)
-    if entry then GearRack.RequestItem(slot,entry,automatic,not automatic) end
-end
-
--- Kept for macro callers; execution belongs entirely to the common equipment engine.
-function GearRackTrinkets.ProcessCombatQueue() GearRack.Pump() end
-
 function GearRackTrinkets.ReflectQueueState(which,state)
 	local icon = getglobal("GearRackTrinkets_Trinket"..which.."Queue")
 	local delayed,paused = state=="delay",state=="pause"
@@ -932,7 +770,7 @@ function GearRackTrinkets.UpdateCombatQueue()
 		local trinket = GearRackTrinkets.CombatQueue[which]
 		local icon = getglobal("GearRackTrinkets_Trinket"..which.."Queue")
 		icon:Hide()
-		local held = not trinket and GearRackCharDB.queues and GearRackCharDB.queues.Enabled[which]
+		local held = not trinket and GearRackCharDB.queues.Enabled[which]
 			and (GearRackCharDB.HeldQueues[which] or GearRackTrinkets.PausedQueue[which])
 		GearRackTrinkets.ReflectQueueState(which,held and "pause" or nil)
 		if trinket then
@@ -941,139 +779,82 @@ function GearRackTrinkets.UpdateCombatQueue()
 				icon:SetTexture(GetContainerItemInfo(bag,slot))
 				icon:Show()
 			end
-		elseif GearRackTrinkets.QueueInit and GearRackCharDB.queues and GearRackCharDB.queues.Enabled[which] then
+		elseif GearRackCharDB.queues.Enabled[which] then
 			icon:SetTexture("Interface\\AddOns\\GearRack\\media\\Trinket-Queue")
 			icon:Show()
 		end
 	end
 end
 
---[[ Notify ]]
+--[[ Cooldown watch ]]
 
-function GearRackTrinkets.Notify(msg)
-	PlaySound("GnomeExploration")
-	if SCT_Display then -- send via SCT if it exists
-		SCT_Display(msg,{r=.2,g=.7,b=.9})
-	elseif SHOW_COMBAT_TEXT=="1" then
-		CombatText_AddMessage(msg, CombatText_StandardScroll, .2, .7, .9) -- or default UI's SCT
-	else
-		-- send vis UIErrorsFrame if neither SCT exists
-		UIErrorsFrame:AddMessage(msg,.2,.7,.9,1,UIERRORS_HOLD_TIME)
-	end
-	if GearRackDB.trinketOptions.NotifyChatAlso=="ON" then
-		DEFAULT_CHAT_FRAME:AddMessage("|cff33b2e5"..msg)
-	end
-end
-
--- adds location of the name to a watch table for fast lookups
--- pass inv bag slot to override the search
-function GearRackTrinkets.AddWatchItem(name,inv,bag,slot)
-	GearRackTrinkets.WatchItem[name] = GearRackTrinkets.WatchItem[name] or {}
+-- Remember where a used trinket is, by item ID; look it up again when it moved.
+function GearRackTrinkets.AddWatchItem(itemID,inv,bag,slot)
+	local watch = GearRackTrinkets.WatchItem[itemID] or {}
+	GearRackTrinkets.WatchItem[itemID] = watch
 	if not inv and not bag then
-		inv = GearRackTrinkets.WatchItem[name].inv
-		bag = GearRackTrinkets.WatchItem[name].bag
-		slot = GearRackTrinkets.WatchItem[name].slot
-		local link = (inv and GetInventoryItemLink("player",inv)) or (bag and GetContainerItemLink(bag,slot)) or ""
-		local _,_,currentName = string.find(link,"%[(.+)%]")
-		if currentName~=name then
-			inv,bag,slot = GearRackTrinkets.FindItem(name,1)
-		end
+		inv,bag,slot = watch.inv,watch.bag,watch.slot
+		local current = (inv and GetInventoryItemID("player",inv)) or (bag and C_Container.GetContainerItemID(bag,slot))
+		if current~=itemID then inv,bag,slot = GearRack.FindLocation(itemID,nil,true,true) end
 	end
-	GearRackTrinkets.WatchItem[name].inv = inv
-	GearRackTrinkets.WatchItem[name].bag = bag
-	GearRackTrinkets.WatchItem[name].slot = slot
+	watch.inv,watch.bag,watch.slot = inv,bag,slot
 end
 
+-- ItemsUsed[id]: 0-3 while the cooldown settles, then 30 (alerts at 30 and 0)
+-- or 5 (alert at 0 only); the entry ends when the trinket is ready.
 function GearRackTrinkets.CooldownUpdate()
-	local inv,bag,slot,start,duration,name,remain
-	local watch = GearRackTrinkets.WatchItem
-	for i in pairs(GearRackCharDB.trinkets.ItemsUsed) do
-		start,name = nil
-		if not watch[i] then GearRackTrinkets.AddWatchItem(i) end -- if not on watch table, add it
-		inv,bag,slot = watch[i].inv,watch[i].bag,watch[i].slot
-		if inv then -- if it was last seen in an inv slot, get name in that slot
-			_,_,name = string.find(GetInventoryItemLink("player",inv) or "","%[(.+)%]")
-		end
-		if bag then -- if it was last seen in a container slot, get name in that slot
-			_,_,name = string.find(GetContainerItemLink(bag,slot) or "","%[(.+)%]")
-		end
-		if name~=i then -- item has moved
-			inv,bag,slot = GearRackTrinkets.FindItem(i,1)
-			watch[i].inv,watch[i].bag,watch[i].slot = inv,bag,slot
-		end
-		if inv then
-			start,duration = GearRack.GetInventoryCooldown(inv)
-		elseif bag then
-			start,duration = GetContainerItemCooldown(bag,slot)
+	local used = GearRackCharDB.trinkets.ItemsUsed
+	for itemID,state in pairs(used) do
+		GearRackTrinkets.AddWatchItem(itemID)
+		local watch = GearRackTrinkets.WatchItem[itemID]
+		local start,duration
+		if watch.inv then start,duration = GearRack.GetInventoryCooldown(watch.inv)
+		elseif watch.bag then start,duration = GetContainerItemCooldown(watch.bag,watch.slot) end
+		if not start then
+			used[itemID] = nil
+		elseif state<3 then
+			used[itemID] = state+1
 		else
-			GearRackCharDB.trinkets.ItemsUsed[i] = nil
-		end
-		if start and GearRackCharDB.trinkets.ItemsUsed[i]<3 then
-			GearRackCharDB.trinkets.ItemsUsed[i] = GearRackCharDB.trinkets.ItemsUsed[i] + 1 -- count for 3 seconds before seeing if this is a real cooldown
-		elseif start then
-			if start>0 then
-				remain = duration - (GetTime()-start)
-				if GearRackCharDB.trinkets.ItemsUsed[i]<5 then
-					if remain>29 then
-						GearRackCharDB.trinkets.ItemsUsed[i] = 30 -- first actual cooldown greater than 30 seconds, tag it for 30+0 notify
-					elseif remain>5 then
-						GearRackCharDB.trinkets.ItemsUsed[i] = 5 -- first actual cooldown less than 30 but greater than 5, tag for 0 notify
-						if watch[i].rackUsed and GearRackDB.settings.NotifyThirty=="ON" then GearRack.TrinketReady(i,true) end
-					end
-				end
+			local remain = start>0 and duration-(GetTime()-start) or 0
+			if state<5 and remain>5 then
+				state = remain>29 and 30 or 5
+				used[itemID] = state
+				if state==5 then GearRack.ItemReady(GetItemInfo(itemID) or ("Item "..itemID),true) end
 			end
-			if GearRackCharDB.trinkets.ItemsUsed[i]==30 and start>0 and remain<30 then
-				GearRack.TrinketReady(i,true)
-				GearRackCharDB.trinkets.ItemsUsed[i]=5 -- tag for just 0 notify now
-			elseif GearRackCharDB.trinkets.ItemsUsed[i]==5 and start==0 then
-				GearRack.TrinketReady(i,false)
+			if state==30 and remain<30 and start>0 then
+				GearRack.ItemReady(GetItemInfo(itemID) or ("Item "..itemID),true)
+				used[itemID] = 5
+			elseif state==5 and start==0 then
+				GearRack.ItemReady(GetItemInfo(itemID) or ("Item "..itemID),false)
 			end
-			if start==0 then
-				GearRackCharDB.trinkets.ItemsUsed[i] = nil
-			end
+			if start==0 then used[itemID] = nil end
 		end
 	end
 
-    -- GearRack permanently owns cooldown numbers; only visible views need updates.
-    if GearRackTrinkets_MainFrame:IsVisible() then
-        GearRackTrinkets.WriteWornCooldowns()
-    end
-    if GearRackTrinkets_MenuFrame:IsVisible() then
-        GearRackTrinkets.WriteMenuCooldowns()
-    end
-
-	if GearRackTrinkets.PeriodicQueueCheck then
-		GearRackTrinkets.PeriodicQueueCheck()
+	-- GearRack permanently owns cooldown numbers; only visible views need updates.
+	if GearRackTrinkets_MainFrame:IsVisible() then
+		GearRackTrinkets.WriteWornCooldowns()
 	end
+	if GearRackTrinkets_MenuFrame:IsVisible() then
+		GearRackTrinkets.WriteMenuCooldowns()
+	end
+	GearRackTrinkets.PeriodicQueueCheck()
 end
 
 function GearRackTrinkets.WriteWornCooldowns()
 	local start, duration
 	start, duration = GearRack.GetInventoryCooldown(13)
-	GearRackTrinkets.WriteCooldown(GearRackTrinkets_Trinket0Time,start,duration)
+	GearRack.WriteCooldown(GearRackTrinkets_Trinket0Time,start,duration)
 	start, duration = GearRack.GetInventoryCooldown(14)
-	GearRackTrinkets.WriteCooldown(GearRackTrinkets_Trinket1Time,start,duration)
+	GearRack.WriteCooldown(GearRackTrinkets_Trinket1Time,start,duration)
 end
 
 function GearRackTrinkets.WriteMenuCooldowns()
 	local start, duration
 	for i=1,GearRackTrinkets.NumberOfTrinkets do
 		start, duration = GetContainerItemCooldown(GearRackTrinkets.BaggedTrinkets[i].bag,GearRackTrinkets.BaggedTrinkets[i].slot)
-		GearRackTrinkets.WriteCooldown(getglobal("GearRackTrinkets_Menu"..i.."Time"),start,duration)
+		GearRack.WriteCooldown(getglobal("GearRackTrinkets_Menu"..i.."Time"),start,duration)
 	end
-end
-
-function GearRackTrinkets.WriteCooldown(where,start,duration)
-	local cooldown = duration - (GetTime()-start)
-	local previous,text = where:GetText(),""
-	if start==0 or cooldown<=0 then
-		text = ""
-	elseif cooldown<3 and (not previous or previous=="") then
-		-- this is a global cooldown. don't display it. not accurate but at least not annoying
-	else
-		text = (cooldown<60 and math.floor(cooldown+.5).." s") or (cooldown<3600 and math.ceil(cooldown/60).." m") or math.ceil(cooldown/3600).." h"
-	end
-	if (previous or "")~=text then where:SetText(text) end
 end
 
 function GearRackTrinkets.OnShow()

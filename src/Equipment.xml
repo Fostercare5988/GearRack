@@ -461,16 +461,5 @@ end
 </OnUpdate>
 		</Scripts>
 	</Frame>
-	<GameTooltip name="GearRackUI_ItemTooltip" inherits="GameTooltipTemplate" hidden="true">
-		<Scripts>
-			<OnLoad>
-if GearRack.enabled then
-
-				this:SetOwner(WorldFrame,"ANCHOR_NONE")
-
-end
-</OnLoad>
-		</Scripts>
-	</GameTooltip>
 
 </Ui>

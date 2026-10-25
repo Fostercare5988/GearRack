@@ -13,7 +13,7 @@ function GearRack.ToggleSettings()
 end
 
 function GearRack.GetBarProfile()
-    return GearRackDB.bars[UnitName("player").." of "..GetRealmName()]
+    return GearRackDB.bars[GearRack.CharacterKey()]
 end
 
 function GearRack.OpenGearSets()
@@ -55,7 +55,7 @@ function GearRack.SlashHandler(input)
     elseif string.find(command,"^equip%s+") or string.find(command,"^toggle%s+") or command=="lock" or command=="unlock"
         or string.find(command,"^scale%s+") or command=="reset bar" or command=="reset event" or command=="reset events" then GearRackUI_SlashHandler(input)
     else
-        DEFAULT_CHAT_FRAME:AddMessage("GearRack: /gr opens Gear sets; layout, trinkets, queues or sets.")
+        DEFAULT_CHAT_FRAME:AddMessage("GearRack: /gr [sets | layout | trinkets | queues | keys | bar | equip <set> | toggle <set> | lock | unlock | scale <n> | reset bar | reset events]")
     end
 end
 
@@ -73,7 +73,7 @@ function GearRack.CreateSettingsPanel(name,titleText,height)
     frame:SetScript("OnDragStart",function() this:StartMoving() end)
     frame:SetScript("OnDragStop",function() this:StopMovingOrSizing() end)
     frame:SetScript("OnHide",function() this:StopMovingOrSizing() end)
-    table.insert(UISpecialFrames,name)
+    GearRack.SetEscapable(name,true)
     local title=frame:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
     title:SetPoint("TOPLEFT",frame,"TOPLEFT",92,-16)
     title:SetText(titleText)
@@ -106,7 +106,6 @@ function GearRack.CreateSettings()
     SlashCmdList.GEARRACK=GearRack.SlashHandler
     SLASH_GEARRACK1="/gearrack"
     SLASH_GEARRACK2="/gr"
-    BINDING_HEADER_GEARRACK="GearRack"
     GearRack.CreateBarLayout()
     GearRack.CreateNavigation()
     GearRack.CreateMinimapButtons()

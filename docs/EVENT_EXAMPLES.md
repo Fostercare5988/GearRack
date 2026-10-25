@@ -17,7 +17,7 @@ how to make one and gives examples you can copy.
 3. Click **Save**.
 4. In the events list, click the event's **icon** and choose a set. Every
    event needs a set before it can run, even if the script names its own sets.
-5. Tick the event's checkbox, and tick **Enable Events** at the top.
+5. Tick the event's checkbox, and tick **Enable events** at the top.
 
 **Test** runs the script once, to catch typing mistakes. Events pause while the
 Gear sets window is open; close it to let them run.
@@ -230,5 +230,5 @@ if arg1 == UnitGUID("target") then GearRack.EquipSet() end
 - `if not GearRack.IsSetEquipped(set)` stops repeated requests for a set you
   already wear.
 - Weapon-only sets swap in combat. Sets with armor wait until combat ends.
-- **Enable Events** at the top turns every event off at once, if something
+- **Enable events** at the top turns every event off at once, if something
   goes wrong mid-fight.
