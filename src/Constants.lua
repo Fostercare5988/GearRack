@@ -5,9 +5,6 @@ if not GearRack.enabled then return end
 GearRackUI = GearRackUI or {}
 GearRackUIText = GearRackUIText or {}
 
--- Item subtype of a general-purpose bag.
-GearRackUIText.INVTYPE_CONTAINER = "Bag"
-
 -- Goblin Brainwashing Device gossip: its name and the "Activate" line's spec number.
 GearRackUIText.GBD = "Goblin Brainwashing Device"
 GearRackUIText.GBDSpec = "Activate (%d).. Specialization"

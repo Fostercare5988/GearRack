@@ -119,44 +119,12 @@ end
 -- Do not retain an unresolved placeholder: cold metadata must be able to recover.
 local enchantTextures = {}
 
--- Temporary enchants are instance state, not localized tooltip text.
-local function update_enchant(btn, location, equippedState)
+-- Temporary enchants are instance state, not localized tooltip text. Since
+-- ClassicAPI 1.17 the time left counts down for worn and bagged weapons alike.
+local function update_enchant(btn, location)
 	if not btn then return end
 	local overlay = btn.enchantOverlay or get_or_create_enchant_overlay(btn)
-	local slot = location.equipmentSlotIndex
-	local hasEnchant, expirationMs, charges, enchantID
-	local offset = slot == 17 and 4 or 0
-	if equippedState and equippedState[slot] then
-		hasEnchant, expirationMs, charges, enchantID = equippedState[offset+1], equippedState[offset+2], equippedState[offset+3], equippedState[offset+4]
-	else
-		hasEnchant, expirationMs, charges, enchantID = C_Item.GetItemTempEnchantInfo(location)
-		if slot == 16 or slot == 17 then
-			-- ClassicAPI 1.15.16 reads the last descriptor duration, which can
-			-- stay frozen. Native 1.12 computes remaining time from the item's
-			-- expiry clock. Keep ClassicAPI's enchant ID for structured artwork.
-			local mainHas, mainMs, mainCharges, offHas, offMs, offCharges
-			if equippedState then
-				if not equippedState.nativeRead then
-					equippedState.mainHas, equippedState.mainMs, equippedState.mainCharges,
-						equippedState.offHas, equippedState.offMs, equippedState.offCharges = GetWeaponEnchantInfo()
-					equippedState.nativeRead = true
-				end
-				mainHas, mainMs, mainCharges = equippedState.mainHas, equippedState.mainMs, equippedState.mainCharges
-				offHas, offMs, offCharges = equippedState.offHas, equippedState.offMs, equippedState.offCharges
-			else
-				mainHas, mainMs, mainCharges, offHas, offMs, offCharges = GetWeaponEnchantInfo()
-			end
-			if slot == 16 then
-				hasEnchant, expirationMs, charges = mainHas, mainMs, mainCharges
-			else
-				hasEnchant, expirationMs, charges = offHas, offMs, offCharges
-			end
-		end
-		if equippedState then
-			equippedState[slot] = true
-			equippedState[offset+1], equippedState[offset+2], equippedState[offset+3], equippedState[offset+4] = hasEnchant, expirationMs, charges, enchantID
-		end
-	end
+	local hasEnchant, expirationMs, charges, enchantID = C_Item.GetItemTempEnchantInfo(location)
 	if not hasEnchant then
 		overlay:Hide()
 		return
@@ -187,9 +155,9 @@ end
 
 local equippedEnchantLocations = { [16] = {equipmentSlotIndex=16}, [17] = {equipmentSlotIndex=17} }
 
-local function update_equipped_enchant(slotID, btn, equippedState)
+local function update_equipped_enchant(slotID, btn)
 	if slotID == 16 or slotID == 17 then
-		update_enchant(btn, equippedEnchantLocations[slotID], equippedState)
+		update_enchant(btn, equippedEnchantLocations[slotID])
 	elseif btn and btn.enchantOverlay then
 		btn.enchantOverlay:Hide()
 	end
@@ -2085,24 +2053,21 @@ local function notify_cooldown(itemID,watch)
 	end
 end
 
--- One pass may draw both hands in two panels; it shares one native read.
-local equippedState = {}
 function GearRackUI_CooldownUpdate_OnUpdate()
 	if GearRackUI.CooldownsNeedUpdating then
 		GearRackUI.CooldownsNeedUpdating = false
 		update_inv_cooldowns()
 	end
 	GearRackUI_UpdateCooldownNumbers()
-	table.wipe(equippedState)
 	if GearRackUI_InvFrame:IsVisible() then
 		for slot=16,17 do
 			local button = _G["GearRackUIInv"..slot]
-			if button:IsVisible() then update_equipped_enchant(slot, button, equippedState) end
+			if button:IsVisible() then update_equipped_enchant(slot, button) end
 		end
 	end
 	if PaperDollFrame:IsVisible() then
-		update_equipped_enchant(16, CharacterMainHandSlot, equippedState)
-		update_equipped_enchant(17, CharacterSecondaryHandSlot, equippedState)
+		update_equipped_enchant(16, CharacterMainHandSlot)
+		update_equipped_enchant(17, CharacterSecondaryHandSlot)
 	end
 	if GearRackUI_MenuFrame:IsVisible() and (GearRackUI.InvOpen == 16 or GearRackUI.InvOpen == 17) then
 		for i=1,GearRackUI.NumberOfItems do
@@ -3784,11 +3749,6 @@ function GearRackEngine.Initialize()
 		GearRackDB.sets[user] = { Sets={}, CurrentSet=nil }
 	end
 
-	GearRackDB.sets[user].Sets["GearRackEngine-CombatQueue"] = {}
-	for i=0,19 do
-		GearRackDB.sets[user].Sets["GearRackEngine-CombatQueue"][i] = { id=nil, name=nil }
-	end
-
 	-- note: these timers are added to a pool, they don't affect processing time unless started
 	GearRackEngine.CreateTimer("WaitToIterate",GearRackEngine.IterateWait,1) -- itemlock iterate pause
 	GearRackEngine.CreateTimer("IconDragging",GearRackEngine.IconDragging,0,1) -- minimap button dragging
@@ -3917,11 +3877,9 @@ function GearRackEngine.ValidBag(bagid)
 		local _,bagType = C_Container.GetContainerNumFreeSlots(bagid)
 		return bagType==0
 	end
-	-- ClassicAPI reports no bag family for bank bags; read the bag item's subtype.
+	-- Bank bags report no family from GetContainerNumFreeSlots; ask the bag item.
 	local link = GetInventoryItemLink("player",ContainerIDToInventoryID(bagid))
-	if not link then return false end
-	local _,_,_,_,_,subType = GetItemInfo(link)
-	return subType==GearRackUIText.INVTYPE_CONTAINER
+	return link and C_Item.GetItemFamily(link)==0 or false
 end
 
 function GearRackEngine.FindSpaceInBag(bag)

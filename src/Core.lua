@@ -148,9 +148,18 @@ function GearRack.NormalizeSavedData()
     for key,value in pairs(GearRackUI.DefaultSettings) do
         if GearRackDB.settings[key]==nil then GearRackDB.settings[key]=value end
     end
-    -- Retired: the trinket window uses the shared tooltip, list and alert settings.
-    for _,key in ipairs({"TooltipFollow","ShowTooltips","MenuOnShift","Notify","NotifyThirty","NotifyChatAlso","HideOnLoad"}) do
+    -- Retired: the trinket window uses the shared tooltip, list and alert settings;
+    -- GearRack always draws cooldown numbers, rarity borders and full tooltips.
+    for _,key in ipairs({"TooltipFollow","ShowTooltips","MenuOnShift","Notify","NotifyThirty","NotifyChatAlso",
+        "HideOnLoad","CooldownCount","LargeCooldown","TinyTooltips"}) do
         GearRackDB.trinketOptions[key]=nil
+    end
+    for _,key in ipairs({"BigCooldown","CooldownNumbers","QualityBorders","TinyTooltip","Minimap"}) do
+        GearRackDB.settings[key]=nil
+    end
+    -- The combat queue lives in memory only; older versions saved it with the sets.
+    for _,character in pairs(GearRackDB.sets) do
+        if type(character)=="table" and type(character.Sets)=="table" then character.Sets["GearRackEngine-CombatQueue"]=nil end
     end
     if type(GearRackCharDB.KeepManualTrinkets)~="boolean" then GearRackCharDB.KeepManualTrinkets=true end
     if type(GearRackCharDB.HeldQueues)~="table" then GearRackCharDB.HeldQueues={} end

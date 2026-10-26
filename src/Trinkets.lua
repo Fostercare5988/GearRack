@@ -9,7 +9,6 @@ GearRackTrinkets = {}
 function GearRackTrinkets.LoadDefaults()
 
 	local defaults = {
-		TooltipFollow = "OFF",		-- whether tooltips follow the mouse
 		KeepOpen = "OFF",			-- whether menu hides after use
 		KeepDocked = "ON",			-- whether to keep menu docked at all times
 		Locked = "OFF",				-- whether windows can be moved/scaled/rotated
