@@ -1040,7 +1040,7 @@ local function draw_inv()
 		if GearRackDB.bars[user].Visible~="OFF" then
 			GearRackUI_InvFrame:Show()
 		end
-		cooldowns_need_updating()
+		GearRackUI.CooldownsNeedUpdating = true
 		GearRackEngine.StartTimer("CooldownUpdate",0)
 
 		if GearRackDB.settings.SetLabels=="ON" then
@@ -1074,6 +1074,8 @@ local function set_lock(arg1)
 		GearRackUI_InvFrame_Resize:Hide()
 		GearRackUI_Control_Rotate:SetAlpha(.4)
 		GearRackUI_Control_Rotate:Disable()
+		-- The controls stay while Alt is held, then hide.
+		GearRackEngine.StartTimer("ControlFrame")
 	else
 		GearRackUI_InvFrame:SetBackdropColor(1,1,1,1)
 		GearRackUI_InvFrame:SetBackdropBorderColor(1,1,1,1)
@@ -1081,7 +1083,6 @@ local function set_lock(arg1)
 		GearRackUI_Control_Rotate:SetAlpha(1)
 		GearRackUI_Control_Rotate:Enable()
 		GearRackUI_ControlFrame:Show()
-		GearRackEngine.StartTimer("ControlFrame")
 	end
 end
 
@@ -4973,15 +4974,40 @@ end
 --[[ Timer maintenance
 	ClassicAPI owns delayed callbacks. OnUpdate is reserved for cursor-following
 	render work (IconDragging), whose zero period means once each rendered frame.
+	Each timer has one callback for life; a repeating timer runs on one ticker,
+	so neither a start nor a tick builds a closure. A cancelled handle never fires.
 ]]
 
+local function fire_timer(clock)
+	if not clock.enabled then return end
+	if clock.rep then
+		-- A first wait of another length runs on a one-shot; the period then ticks.
+		if not clock.ticking then
+			clock.ticking = true
+			clock.handle = C_Timer.NewTicker(clock.limit,clock.fire)
+		end
+		clock.deadline = GetTime()+clock.limit
+	else
+		clock.handle, clock.deadline, clock.enabled = nil, nil, nil
+	end
+	local generation = clock.generation
+	local ok,err = pcall(clock.func)
+	if not ok then
+		if clock.generation==generation then GearRackEngine.StopTimer(clock.name) end
+		DEFAULT_CHAT_FRAME:AddMessage("GearRack timer "..clock.name..": "..tostring(err),1,0.2,0.2)
+	end
+end
+
 function GearRackEngine.CreateTimer(name,func,limit,rep)
-	GearRackEngine.TimerPool[name] = {func=func,limit=limit,rep=rep,generation=0}
+	local clock = {name=name,func=func,limit=limit,rep=rep,generation=0}
+	clock.fire = function() fire_timer(clock) end
+	GearRackEngine.TimerPool[name] = clock
 end
 
 function GearRackEngine.StartTimer(name,delay,keepEarlier)
 	local clock = GearRackEngine.TimerPool[name]
-	local deadline=GetTime()+(delay or clock.limit)
+	delay = delay or clock.limit
+	local deadline=GetTime()+delay
 	if keepEarlier and clock.enabled and clock.handle and clock.deadline and clock.deadline<=deadline then return end
 	GearRackEngine.StopTimer(name)
 	clock.enabled = 1
@@ -4989,26 +5015,13 @@ function GearRackEngine.StartTimer(name,delay,keepEarlier)
 		GearRackEngineFrame:Show()
 		return
 	end
-	local generation = clock.generation
-	local callback
-	callback = function()
-		if not clock.enabled or clock.generation~=generation then return end
-		clock.handle = nil
-		clock.deadline = nil
-		if clock.rep then
-			clock.deadline=GetTime()+clock.limit
-			clock.handle = C_Timer.NewTimer(clock.limit,callback)
-		else
-			clock.enabled = nil
-		end
-		local ok,err = pcall(clock.func)
-		if not ok then
-			if clock.generation==generation then GearRackEngine.StopTimer(name) end
-			DEFAULT_CHAT_FRAME:AddMessage("GearRack timer "..name..": "..tostring(err),1,0.2,0.2)
-		end
+	clock.deadline = deadline
+	if clock.rep and delay==clock.limit then
+		clock.ticking = true
+		clock.handle = C_Timer.NewTicker(delay,clock.fire)
+	else
+		clock.handle = C_Timer.NewTimer(delay,clock.fire)
 	end
-	clock.deadline=deadline
-	clock.handle = C_Timer.NewTimer(delay or clock.limit,callback)
 end
 
 function GearRackEngine.StopTimer(name)
@@ -5016,8 +5029,7 @@ function GearRackEngine.StopTimer(name)
 	if not clock then return end
 	clock.generation = clock.generation+1
 	if clock.handle then clock.handle:Cancel(); clock.handle = nil end
-	clock.deadline = nil
-	clock.enabled = nil
+	clock.deadline, clock.enabled, clock.ticking = nil, nil, nil
 	GearRackEngine.ClearStoppedTimers()
 end
 
@@ -5108,9 +5120,12 @@ function GearRackEngine.TooltipUpdate()
 	end
 end
 
--- formerly GearRackUI_ControlFrame_OnUpdate
+-- Hides the bar's controls once Alt is released over a locked bar. An unlocked
+-- bar always shows them, so there is nothing to watch.
 function GearRackEngine.ControlFrame()
-	if GearRackDB.bars[user].Locked=="ON" and not IsAltKeyDown() then
+	if GearRackDB.bars[user].Locked~="ON" then
+		GearRackEngine.StopTimer("ControlFrame")
+	elseif not IsAltKeyDown() then
 		GearRackEngine.StopTimer("ControlFrame")
 		GearRackUI_ControlFrame:Hide()
 	end
