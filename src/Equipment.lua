@@ -1203,33 +1203,30 @@ end
 
 --[[ Frame functions ]]--
 
+-- Character sheet and gossip hooks, defined below. Alt-clicks on the sheet
+-- replace the native click and the device's gossip is read before it changes;
+-- the rest run after the native function.
+local original_slot_click, original_model_mouseup, original_gossip_click
+local slot_click, model_mouseup, slot_enter, sheet_show, sheet_hide, gossip_click
+
 function GearRackUI_OnLoad()
 
-	-- hook for ALT+click of inventory slots (to add inventory slots to rack)
-	oldGearRackUI_PaperDollItemSlotButton_OnClick = PaperDollItemSlotButton_OnClick
-	PaperDollItemSlotButton_OnClick = newGearRackUI_PaperDollItemSlotButton_OnClick
+	-- Alt+click a character sheet slot or the model to add it to the bar.
+	original_slot_click = PaperDollItemSlotButton_OnClick
+	PaperDollItemSlotButton_OnClick = slot_click
+	original_model_mouseup = CharacterModelFrame_OnMouseUp
+	CharacterModelFrame_OnMouseUp = model_mouseup
 
-	-- hook for ALT+click of character model (to add set slot to rack)
-	oldGearRackUI_CharacterModelFrame_OnMouseUp = CharacterModelFrame_OnMouseUp
-	CharacterModelFrame_OnMouseUp = newGearRackUI_CharacterModelFrame_OnMouseUp
-
-	-- hook for mouseover of character sheet item slots (to display menu)
-	oldGearRackUI_PaperDollItemSlotButton_OnEnter = PaperDollItemSlotButton_OnEnter
-	PaperDollItemSlotButton_OnEnter = newGearRackUI_PaperDollItemSlotButton_OnEnter
-
-	-- hook for character sheet hiding (to hide menu)
-	oldGearRackUI_PaperDollFrame_OnHide = PaperDollFrame_OnHide
-	PaperDollFrame_OnHide = newGearRackUI_PaperDollFrame_OnHide
-
-	-- hook for character sheet showing (to refresh weapon enchant overlays)
-	oldGearRackUI_PaperDollFrame_OnShow = PaperDollFrame_OnShow
-	PaperDollFrame_OnShow = newGearRackUI_PaperDollFrame_OnShow
+	-- Hovering a slot opens its flyout; the sheet refreshes enchants and closes it.
+	hooksecurefunc("PaperDollItemSlotButton_OnEnter", slot_enter)
+	hooksecurefunc("PaperDollFrame_OnShow", sheet_show)
+	hooksecurefunc("PaperDollFrame_OnHide", sheet_hide)
 
 	hooksecurefunc("UseInventoryItem", GearRackUI.OnUseInventoryItem)
 	hooksecurefunc("UseAction", GearRackUI.OnUseAction)
 
-	GearRack_OriginalGossipTitleButton_OnClick = GossipTitleButton_OnClick
-	GossipTitleButton_OnClick = GearRack_GossipTitleButton_OnClick
+	original_gossip_click = GossipTitleButton_OnClick
+	GossipTitleButton_OnClick = gossip_click
 
 	this:RegisterEvent("PLAYER_LOGIN")
 end
@@ -1435,7 +1432,7 @@ function GearRackUI.OnUseAction(slot, checkCursor, onSelf)
 end
 
 -- Inv slots are added by ALT+clicking the paper doll
-function newGearRackUI_PaperDollItemSlotButton_OnClick(button, ignoreShift)
+function slot_click(button, ignoreShift)
 
 	if IsAltKeyDown() then
 		local item = string.gsub(tostring(this:GetName()),"Character","")
@@ -1451,13 +1448,13 @@ function newGearRackUI_PaperDollItemSlotButton_OnClick(button, ignoreShift)
 			draw_inv()
 		end
 	else
-		oldGearRackUI_PaperDollItemSlotButton_OnClick(button, ignoreShift)
+		original_slot_click(button, ignoreShift)
 	end
 
 end
 
 -- set slot is added by ALT+clicking the paper doll character model
-function newGearRackUI_CharacterModelFrame_OnMouseUp(button)
+function model_mouseup(button)
 
 	if IsAltKeyDown() then
 		local visible = not GearRackDB.bars[user].Inv[20]
@@ -1466,16 +1463,14 @@ function newGearRackUI_CharacterModelFrame_OnMouseUp(button)
 		end
 		GearRack.SetSetButtonVisible(visible)
 	else
-		oldGearRackUI_CharacterModelFrame_OnMouseUp(button)
+		original_model_mouseup(button)
 	end
 
 end
 
-function newGearRackUI_PaperDollItemSlotButton_OnEnter()
+function slot_enter()
 
 	local id = this:GetID()
-
-	oldGearRackUI_PaperDollItemSlotButton_OnEnter()
 
 	if id and not InRepairMode() and not CursorHasItem() then
 		if GearRackDB.settings.CharSheetMenu ~= "OFF" then
@@ -1497,30 +1492,26 @@ function newGearRackUI_PaperDollItemSlotButton_OnEnter()
 	end
 end
 
-function newGearRackUI_PaperDollFrame_OnShow()
-	oldGearRackUI_PaperDollFrame_OnShow()
+function sheet_show()
 	update_equipped_enchant(16, CharacterMainHandSlot)
 	update_equipped_enchant(17, CharacterSecondaryHandSlot)
 end
 
-function newGearRackUI_PaperDollFrame_OnHide()
-
+function sheet_hide()
 	if GearRackUI.MenuDockedTo=="CHARACTERSHEET" then
 		GearRackUI_MenuFrame:Hide()
 	end
-
-	oldGearRackUI_PaperDollFrame_OnHide()
 end
 
 -- Activating a Goblin Brainwashing Device specialization fires GEARRACK_GBD
 -- with the spec number. The device's other options pass through untouched.
-function GearRack_GossipTitleButton_OnClick()
+function gossip_click(...)
 	if GearRackDB.settings.EnableEvents=="ON" and this.type~="Available" and this.type~="Active"
 		and GossipFrameNpcNameText:GetText()==GearRackUIText.GBD then
 		local _,_,spec = string.find(this:GetText() or "",GearRackUIText.GBDSpec)
 		if spec then GearRackUI_RegisterFrame_OnEvent("GEARRACK_GBD",spec) end
 	end
-	GearRack_OriginalGossipTitleButton_OnClick()
+	return original_gossip_click(...)
 end
 
 --[[ Inv Movement ]]--
