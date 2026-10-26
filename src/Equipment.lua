@@ -106,13 +106,13 @@ local function get_enchant_texture(info)
 		-- UNVERIFIED: test in game. Poisons whose spell has no icon of its own.
 		local lower = string.lower(name)
 		if string.find(lower, "dissolvent") then
-			return "Interface\Icons\Spell_Nature_SlowPoison"
+			return "Interface\\Icons\\Spell_Nature_SlowPoison"
 		elseif string.find(lower, "corrosive") then
-			return "Interface\Icons\INV_Corrosive_01"
+			return "Interface\\Icons\\INV_Corrosive_01"
 		end
 	end
 	return info and info.spellID and C_Spell.GetSpellTexture(info.spellID)
-		or "Interface\Icons\INV_Misc_QuestionMark"
+		or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
 -- Resolved icon art is static by enchant ID; remaining time/charges stay live.

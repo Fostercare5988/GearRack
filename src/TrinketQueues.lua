@@ -176,7 +176,7 @@ function GearRackTrinkets.SortTooltip()
 	local idx = FauxScrollFrame_GetOffset(GearRackTrinkets_SortScroll) + this:GetID()
 	local id = GearRackCharDB.queues.Sort[GearRackTrinkets.CurrentlySorting][idx]
 	local name,itemLink = GetItemInfo(id or "")
-	if itemLink and GearRackDB.trinketOptions.ShowTooltips=="ON" then
+	if itemLink and GearRackDB.settings.ShowTooltips=="ON" then
 		GearRackTrinkets.AnchorTooltip()
 		GameTooltip:SetHyperlink(itemLink)
 		GameTooltip:Show()
