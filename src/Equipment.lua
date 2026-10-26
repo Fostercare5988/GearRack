@@ -1670,7 +1670,7 @@ function GearRackUI_ReactUseInventoryItem(slot)
 
 	local item = itemID and GetItemInfo(itemID)
 	-- Trinkets have their own watcher (Trinkets.lua).
-	if GearRackDB.settings.Notify=="ON" and item and slot~=13 and slot~=14 then
+	if GearRack.WantsReadyNotice() and item and slot~=13 and slot~=14 then
 		local watch = GearRackUI.NotifyList[itemID] or {}
 		GearRackUI.NotifyList[itemID] = watch
 		watch.name, watch.inv, watch.bag, watch.slot, watch.hadcooldown = item, slot, nil, nil, nil
@@ -1993,9 +1993,11 @@ end
 
 --[[ Cooldowns ]]--
 
--- Ready alert for a used item; also fires GEARRACK_NOTIFY for events.
+-- Ready alert for a used item, when wanted; also fires GEARRACK_NOTIFY for events.
 local function notify(name)
-	GearRack.Alert(string.format((GearRackDB.settings.NotifyThirty=="OFF") and GearRackUIText.READY or GearRackUIText.READYTHIRTY,name))
+	if GearRackDB.settings.Notify=="ON" then
+		GearRack.Alert(string.format((GearRackDB.settings.NotifyThirty=="OFF") and GearRackUIText.READY or GearRackUIText.READYTHIRTY,name))
+	end
 	if GearRackDB.settings.EnableEvents=="ON" then
 		GearRackUI_RegisterFrame_OnEvent("GEARRACK_NOTIFY",name)
 	end
@@ -2067,7 +2069,7 @@ function GearRackUI_CooldownUpdate_OnUpdate()
 			end
 		end
 	end
-	if GearRackDB.settings.Notify=="ON" then
+	if GearRack.WantsReadyNotice() then
 		for itemID,watch in pairs(GearRackUI.NotifyList) do
 			if notify_cooldown(itemID,watch) then GearRackUI.NotifyList[itemID] = nil end
 		end
@@ -3421,17 +3423,6 @@ function GearRackUI_EnableAllEvents()
 		return
 	end
 	GearRackUI.EventsSuspended = nil
-
-	if GearRackDB.settings.Notify=="OFF" then
-		-- if notify is off, see if any GEARRACK_NOTIFY events are registered and turn on notify
-		for i in pairs(GearRackDB.bars[user].Events) do
-			if GearRackDB.bars[user].Events[i].enabled and GearRackDB.events[i].trigger=="GEARRACK_NOTIFY" then
-				GearRackDB.settings.Notify="ON"
---				GearRackUI_Opt_Notify:SetChecked(1)
-				DEFAULT_CHAT_FRAME:AddMessage("GearRack: Notify has been turned on for Event: |cFFFFFF00"..i)
-			end
-		end
-	end
 
 	if GearRackDB.settings.EnableEvents=="ON" then
 		for i in pairs(GearRackDB.bars[user].Events) do

@@ -335,10 +335,16 @@ function GearRack.FindLocation(id,name,passive,includeInventory,guid)
     end
 end
 
+-- Ready notices feed the alert (Notify when ready) and any enabled
+-- GEARRACK_NOTIFY event; either one is enough to watch used items.
+function GearRack.WantsReadyNotice()
+    return GearRackDB.settings.Notify=="ON" or GearRackUI.Register.GEARRACK_NOTIFY~=nil
+end
+
 -- A used item is ready (soon: 30 seconds left). Notify at 30 replaces the
 -- ready message; both go through the equipment notifier and its event.
 function GearRack.ItemReady(name,soon)
-    if GearRackDB.settings.Notify=="ON" and soon==(GearRackDB.settings.NotifyThirty=="ON") then
+    if GearRack.WantsReadyNotice() and soon==(GearRackDB.settings.NotifyThirty=="ON") then
         GearRackUI_Notify(name)
     end
 end
