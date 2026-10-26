@@ -590,11 +590,16 @@ end
 
 --[[ Cooldowns ]]
 
+-- Every global cooldown asks again; redraw a spiral only when its cooldown changed.
+local function set_worn_cooldown(frame,start,duration,enable)
+	if frame.gearRackStart==start and frame.gearRackDuration==duration and frame.gearRackEnable==enable then return end
+	frame.gearRackStart,frame.gearRackDuration,frame.gearRackEnable = start,duration,enable
+	CooldownFrame_SetTimer(frame,start,duration,enable)
+end
+
 function GearRackTrinkets.UpdateWornCooldowns(maybeGlobal)
-	local start,duration,enable = GearRack.GetInventoryCooldown(13)
-	CooldownFrame_SetTimer(GearRackTrinkets_Trinket0Cooldown,start,duration,enable)
-	start,duration,enable = GearRack.GetInventoryCooldown(14)
-	CooldownFrame_SetTimer(GearRackTrinkets_Trinket1Cooldown,start,duration,enable)
+	set_worn_cooldown(GearRackTrinkets_Trinket0Cooldown,GearRack.GetInventoryCooldown(13))
+	set_worn_cooldown(GearRackTrinkets_Trinket1Cooldown,GearRack.GetInventoryCooldown(14))
 	if not maybeGlobal then
 		GearRackTrinkets.WriteWornCooldowns()
 	end

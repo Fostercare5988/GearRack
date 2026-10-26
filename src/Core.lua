@@ -560,10 +560,16 @@ function GearRack.UIEvent(ev,unit,spellID,castType)
         return carried or bank,bank
     elseif ev=="GET_ITEM_INFO_RECEIVED" then return GearRack.ItemDataReceived(unit,spellID)
     elseif ev=="UNIT_INVENTORY_CHANGED" and unit=="player" then
-        if GearRack.RefreshEquippedItemIDs() then GearRack.InvalidateBag() end
-        GearRackTrinkets.UpdateWornTrinkets()
+        -- Also fires for durability, charges and ammo counts. Views redraw only
+        -- when a worn item really changed; swaps still check completion.
+        local changed=GearRack.RefreshEquippedItemIDs()
+        if changed then
+            GearRack.InvalidateBag()
+            GearRackTrinkets.UpdateWornTrinkets()
+        end
         if GearRackEngine.SwapRequest then GearRackEngine.OnItemLockChanged() end
         GearRack.Wake()
+        return changed
     elseif ev=="ACTIONBAR_UPDATE_COOLDOWN" then GearRackTrinkets.UpdateWornCooldowns(1);GearRack.Wake()
     elseif ev=="UPDATE_BINDINGS" then
         GearRackTrinkets.ReflectKeyBindings()

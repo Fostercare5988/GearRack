@@ -1302,6 +1302,12 @@ local function initialize_events(v1)
 	GearRackUI_EnableAllEvents()
 end
 
+-- One redraw per burst of changes: a pending redraw is kept, not restarted.
+local function inventory_changed()
+	cacheInvalid = true
+	GearRackEngine.StartTimer("InvUpdate",nil,true)
+end
+
 function GearRackUI_OnEvent(ev)
 	local f, a1, a2, a3 = GearRackUIFrame, arg1, arg2, arg3
 
@@ -1311,9 +1317,9 @@ function GearRackUI_OnEvent(ev)
 	end
 
 	if ev=="UNIT_INVENTORY_CHANGED" then
-		if a1=="player" then
-			cacheInvalid = true
-			GearRackEngine.StartTimer("InvUpdate")
+		-- The ammo count is the one view that changes without a new item.
+		if a1=="player" and (dataChanged or GearRackDB.bars[user].Inv[0]) then
+			inventory_changed()
 		end
 	elseif ev=="PLAYER_AURAS_CHANGED" then
 		GearRackUI_BuffsChanged()
@@ -1322,13 +1328,11 @@ function GearRackUI_OnEvent(ev)
 		update_keybindings()
 
 	elseif ev=="BANKFRAME_OPENED" then
-		cacheInvalid = true
 		GearRackEngine.BankOpened()
-		GearRackEngine.StartTimer("InvUpdate")
+		inventory_changed()
 	elseif ev=="PLAYERBANKSLOTS_CHANGED" then
-		cacheInvalid = true
 		GearRackEngine.PopulateBank()
-		GearRackEngine.StartTimer("InvUpdate")
+		inventory_changed()
 
 	elseif ev=="BANKFRAME_CLOSED" then
 		cacheInvalid = true
@@ -1336,16 +1340,14 @@ function GearRackUI_OnEvent(ev)
 
 	elseif ev=="GET_ITEM_INFO_RECEIVED" then
 		if dataChanged then
-			cacheInvalid = true
 			if bankChanged then GearRackEngine.PopulateBank() end
-			GearRackEngine.StartTimer("InvUpdate")
+			inventory_changed()
 		end
 
 	elseif ev=="BAG_UPDATE" then
 		if dataChanged then
-			cacheInvalid = true
 			if bankChanged then GearRackEngine.PopulateBank() end
-			GearRackEngine.StartTimer("InvUpdate")
+			inventory_changed()
 		end
 
 	elseif ev=="PLAYER_LOGIN" then
