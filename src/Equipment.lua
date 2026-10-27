@@ -1329,7 +1329,8 @@ function GearRackUI_OnEvent(ev)
 		initialize_display()
 		GearRack.Initialize()
 
-		f:RegisterEvent("UNIT_INVENTORY_CHANGED")
+		-- Player only: ClassicAPI fires unit events once per token, nameplates included.
+		f:RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player")
 		f:RegisterEvent("UPDATE_BINDINGS")
 		f:RegisterEvent("BAG_UPDATE")
 		f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
