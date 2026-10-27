@@ -13,7 +13,7 @@
 
 | Client extension | Minimum version |
 | --- | --- |
-| [ClassicAPI](https://github.com/brues-code/ClassicAPI) | 1.17.7 |
+| [ClassicAPI](https://github.com/brues-code/ClassicAPI) | 1.17.11 |
 | [SuperWoW](https://github.com/balakethelock/SuperWoW) | 2.2 |
 | [NamPower](https://github.com/Emyrk/nampower) | 4.6.2 |
 
