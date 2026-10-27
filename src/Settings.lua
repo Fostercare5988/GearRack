@@ -102,6 +102,27 @@ function GearRack.CreateSettingsButton(frame,name,label,x,y,action,width,height)
         {height=height or 32,font="GameFontHighlight"})
 end
 
+-- One entry in Game Menu > AddOn Options (ClassicAPI). A child names its
+-- parent; ClassicAPI lists it under the parent's "+", collapsed at first.
+local function OptionsEntry(name,title,parent,text,label,open)
+    local entry=CreateFrame("Frame",name)
+    entry.name,entry.parent=title,parent
+    local heading=entry:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
+    heading:SetPoint("TOPLEFT",entry,"TOPLEFT",16,-16)
+    heading:SetText(title)
+    local line=entry:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+    line:SetPoint("TOPLEFT",heading,"BOTTOMLEFT",0,-8)
+    line:SetText(text)
+    if open then
+        UI.Select(UI.Button(name.."Open",entry,label,16,-70,172,function()
+            if InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then InterfaceOptionsFrame:Hide() end
+            if GameMenuFrame and GameMenuFrame:IsShown() then HideUIPanel(GameMenuFrame) end
+            open()
+        end),true)
+    end
+    InterfaceOptions_AddCategory(entry)
+end
+
 function GearRack.CreateSettings()
     SlashCmdList.GEARRACK=GearRack.SlashHandler
     SLASH_GEARRACK1="/gearrack"
@@ -110,4 +131,11 @@ function GearRack.CreateSettings()
     GearRack.CreateNavigation()
     GearRack.CreateMinimapButtons()
     GearRack.CreateSetMacroHandles()
+    OptionsEntry("GearRackOptionsEntry","GearRack",nil,
+        "Open Gear Sets or Trinkets from the list. Type /gr to open gear sets at any time.")
+    OptionsEntry("GearRackOptionsSets","Gear Sets","GearRack",
+        "Make, equip and change your gear sets.","Open gear sets",GearRack.OpenGearSets)
+    OptionsEntry("GearRackOptionsTrinkets","Trinkets","GearRack",
+        "Trinket bar options and the trinket order for each slot.","Open trinkets",
+        function() GearRack.ShowMenuPage(GearRackTrinkets_OptFrame,1,true) end)
 end

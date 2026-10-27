@@ -94,7 +94,8 @@ More scripts: [Event examples](docs/EVENT_EXAMPLES.md).
 
 ## Commands
 
-`/gearrack` works the same as `/gr`.
+`/gearrack` works the same as `/gr`. **Game Menu > AddOn Options > GearRack** lists
+**Gear Sets** and **Trinkets** under its **+**; each opens its window.
 
 | Command | Does |
 | --- | --- |
