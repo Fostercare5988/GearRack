@@ -1,5 +1,4 @@
 ## Interface: 11200
-## X-ClassicAPI-Min-Version: 1.18.5
 ## Dependencies: !!!ClassicAPI
 ## X-SuperWoW-Min-Version: 2.2
 ## X-NamPower-Min-Version: 4.6.2
