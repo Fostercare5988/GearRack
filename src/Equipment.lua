@@ -3638,16 +3638,12 @@ end
 
 -- returns the name of the form the player is in
 function GearRackUI_GetForm()
-
-	local name,form,is_active
-
-	for i=1,GetNumShapeshiftForms() do
-		_,name,is_active = GetShapeshiftFormInfo(i)
-		if is_active then
-			form = name
-		end
+	-- ClassicAPI 1.18.0: the active stance-bar index, 0 for none.
+	local index = GetShapeshiftForm()
+	if index > 0 and index <= GetNumShapeshiftForms() then
+		local _,name = GetShapeshiftFormInfo(index)
+		return name
 	end
-	return form
 end
 
 -- gathers active buffs into GearRackUI.Buffs and sends it via RegisterFrame for events
