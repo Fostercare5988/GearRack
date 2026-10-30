@@ -1268,6 +1268,8 @@ local function initialize_events(v1)
 end
 
 -- One redraw per burst of changes: a pending redraw is kept, not restarted.
+local validate_set_buttons -- the set editor's buttons, defined with the editor below
+
 local function inventory_changed()
 	cacheInvalid = true
 	GearRackEngine.StartTimer("InvUpdate",nil,true)
@@ -1578,6 +1580,7 @@ function GearRackUI_InvUpdate_OnUpdate()
 				SetDesaturation(_G["GearRackUI_Sets_Inv"..i.."Icon"],nil)
 			end
 			GearRackUI_Sets_UpdateInventory()
+			validate_set_buttons()
 		end
 
 		if GearRackUI.InvOpen then
@@ -2137,6 +2140,7 @@ end
 function GearRackUI_Opt_OnClick(overrideID)
 
 	local id = overrideID or this:GetName()
+	if id=="GearRackUI_Sets_HideSet" then validate_set_buttons() return end
 
 	if GearRackUI.OptInfo[id] and GearRackUI.OptInfo[id].info then
 		local info = GearRackUI.OptInfo[id].info
@@ -2268,6 +2272,7 @@ function GearRackUI_TriStateCheck_OnClick()
 		GearRackUI_TriStateCheck_SetState(this,nil)
 	end
 	GearRackUI_TriStateCheck_Tooltip()
+	validate_set_buttons()
 end
 
 -- initializes tristate buttons to be indeterminate
@@ -2385,7 +2390,30 @@ function GearRackUI_Sets_NewSet()
 
 end
 
-local function validate_set_buttons()
+-- Whether Save would change what is stored: a new set, or any difference from
+-- the saved one in icon, options, slots or the items worn in them.
+local function set_has_changes(setname)
+	local saved = GearRackDB.sets[user].Sets[setname]
+	if not saved then return true end
+	if saved.icon~=GearRackUI.SelectedIcon or saved.hide~=GearRackUI_Sets_HideSet:GetChecked()
+		or saved.showhelm~=GearRackUI_ShowHelm.tristate or saved.showcloak~=GearRackUI_ShowCloak.tristate then
+		return true
+	end
+	-- As in Save: with a two-hander worn the off hand is left out.
+	local _,_,_,mainSlot = get_item_info(16)
+	local twoHand = mainSlot=="INVTYPE_2HWEAPON"
+	for i=0,19 do
+		local chosen = GearRackUI.SetBuild[i]==1 and not (twoHand and i==17)
+		if chosen ~= (saved[i]~=nil) then return true end
+		if chosen then
+			local _,id = GearRackEngine.GetItemInfo(i)
+			if saved[i].id~=id then return true end
+		end
+	end
+	return false
+end
+
+function validate_set_buttons()
 
 	local setname,found = GearRackUI_Sets_Name:GetText()
 
@@ -2400,7 +2428,12 @@ local function validate_set_buttons()
 	end
 	setname = (found and setname) or nil
 
-	UI.SetEnabled(GearRackUI_Sets_SaveButton,setname and string.len(setname)>0)
+	local canSave = setname and string.len(setname)>0
+	UI.SetEnabled(GearRackUI_Sets_SaveButton,canSave)
+	-- Save lights up while it has something to store (once Skin.lua has made its pill).
+	if GearRackUI_Sets_SaveButton.fill then
+		ns.SelectPill(GearRackUI_Sets_SaveButton,canSave and set_has_changes(setname) or false)
+	end
 
 	build_icon()
 end
@@ -2470,7 +2503,7 @@ function GearRackUI_Sets_Icon_OnClick()
 		GearRackUI.SelectedIcon = GearRackUI.SetIcons[idx]
 		GearRackUI_Sets_ScrollFrame_Update()
 	end
-	build_icon()
+	validate_set_buttons()
 end
 
 function GearRackUI_Sets_Name_OnTextChanged()
