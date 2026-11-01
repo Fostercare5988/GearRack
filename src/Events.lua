@@ -39,7 +39,7 @@ GearRackUI_DefaultEvents = {
 		["script"] = "local form=GearRackUI_GetForm() if form==\"Cat Form\" and GEARRACK_FORM~=form then GearRack.EquipSet() GEARRACK_FORM=form end --[[Equip a set when in cat form.]]",
 	},
 	["Low Mana"] = {
-		["trigger"] = "UNIT_MANA",
+		["trigger"] = "UNIT_POWER_UPDATE",
 		["delay"] = 0.5,
 		["script"] = "if arg1~=\"player\" or UnitPowerType(\"player\")~=0 then return end\nlocal maximum = UnitManaMax(\"player\")\nif not maximum or maximum<=0 then return end\nlocal mana = UnitMana(\"player\") / maximum\nif mana < .5 and not GEARRACK_OOM then\n  GearRack.EquipSet()\n  GEARRACK_OOM = 1\nelseif GEARRACK_OOM and mana > .75 then\n  GearRack.LoadSet()\n  GEARRACK_OOM = nil\nend\n--[[Equips a set below 50% mana and restores gear above 75%. Non-weapons wait for combat to end.]]",
 	},
