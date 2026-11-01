@@ -104,20 +104,12 @@ end
 		</Scripts>
 	</CheckButton>
 
-	<!-- Cooldown time text template -->
-	<Frame name="GearRackTrinketsTimeTemplate" enableMouse="false" virtual="true">
-		<Size>
-			<AbsDimension x="36" y="12"/>
-		</Size>
-		<Anchors>
-			<Anchor point="BOTTOMRIGHT"/>
-		</Anchors>
-		<Layers>
-			<Layer level="OVERLAY">
-				<FontString name="$parentTime" inherits="NumberFontNormal" justifyH="CENTER"/>
-			</Layer>
-		</Layers>
-	</Frame>
+<!-- The cooldown sweep and its countdown numbers (countdownForCooldowns). -->
+	<Cooldown name="GearRackTrinketsCooldownTemplate" inherits="CooldownFrameTemplate" setAllPoints="true" enableMouse="false" minimumCountdownDuration="3000" virtual="true">
+		<Scripts>
+			<OnLoad>GearRack.StyleCooldownNumbers(this)</OnLoad>
+		</Scripts>
+	</Cooldown>
 
 	<!-- Combat queue inset template -->
 	<Frame name="GearRackTrinketsQueueTemplate" enableMouse="false" virtual="true">
@@ -215,7 +207,7 @@ end
 					</Anchor>
 				</Anchors>
 			</CheckButton>
-			<Frame parent="GearRackTrinkets_Trinket0" inherits="GearRackTrinketsTimeTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Trinket0" inherits="GearRackTrinketsCooldownTemplate"/>
 			<Frame parent="GearRackTrinkets_Trinket0" inherits="GearRackTrinketsQueueTemplate"/>
 
 			<CheckButton name="GearRackTrinkets_Trinket1" inherits="GearRackTrinketsMainTrinketTemplate" id="14">
@@ -227,7 +219,7 @@ end
 					</Anchor>
 				</Anchors>
 			</CheckButton>
-			<Frame parent="GearRackTrinkets_Trinket1" inherits="GearRackTrinketsTimeTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Trinket1" inherits="GearRackTrinketsCooldownTemplate"/>
 			<Frame parent="GearRackTrinkets_Trinket1" inherits="GearRackTrinketsQueueTemplate"/>
 
 			<Button name="GearRackTrinkets_MainResizeButton" inherits="GearRackTrinketsResizeTemplate">
@@ -385,36 +377,36 @@ end
 			<CheckButton name="GearRackTrinkets_Menu29" inherits="GearRackTrinketsMenuTrinketTemplate" id="29"/>
 			<CheckButton name="GearRackTrinkets_Menu30" inherits="GearRackTrinketsMenuTrinketTemplate" id="30"/>
 
-			<Frame parent="GearRackTrinkets_Menu1" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu2" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu3" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu4" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu5" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu6" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu7" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu8" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu9" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu10" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu11" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu12" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu13" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu14" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu15" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu16" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu17" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu18" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu19" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu20" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu21" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu22" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu23" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu24" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu25" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu26" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu27" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu28" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu29" inherits="GearRackTrinketsTimeTemplate"/>
-			<Frame parent="GearRackTrinkets_Menu30" inherits="GearRackTrinketsTimeTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu1" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu2" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu3" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu4" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu5" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu6" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu7" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu8" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu9" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu10" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu11" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu12" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu13" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu14" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu15" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu16" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu17" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu18" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu19" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu20" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu21" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu22" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu23" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu24" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu25" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu26" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu27" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu28" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu29" inherits="GearRackTrinketsCooldownTemplate"/>
+			<Cooldown name="$parentCD" parent="GearRackTrinkets_Menu30" inherits="GearRackTrinketsCooldownTemplate"/>
 
 		</Frames>
 

@@ -44,7 +44,6 @@ function GearRackTrinkets.InitOptions()
 	GearRackTrinkets.QueueInit()
 	GearRackTrinkets_OptColumnsSlider:SetValue(GearRackDB.trinketOptions.Columns)
 	GearRackTrinkets.ReflectLock()
-	GearRackTrinkets.ReflectCooldownFont()
 	GearRackTrinkets.ReflectKeyBindings()
 end
 
@@ -136,18 +135,6 @@ function GearRackTrinkets.ReflectLock()
 		normalTexture:SetTexCoord(.75,.875,.125,.25)
 		pushedTexture:SetTexCoord(.875,1,.125,.25)
 	end
-end
-
-function GearRackTrinkets.ReflectCooldownFont()
-	GearRackTrinkets.SetCooldownFont("GearRackTrinkets_Trinket0")
-	GearRackTrinkets.SetCooldownFont("GearRackTrinkets_Trinket1")
-	for i=1,GearRackTrinkets.MaxTrinkets do
-		GearRackTrinkets.SetCooldownFont("GearRackTrinkets_Menu"..i)
-	end
-end
-
-function GearRackTrinkets.SetCooldownFont(button)
-    GearRack.StyleCooldownNumbers(_G[button.."Time"],button)
 end
 
 

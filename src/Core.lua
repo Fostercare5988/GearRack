@@ -86,19 +86,6 @@ function GearRack.Alert(text)
     DEFAULT_CHAT_FRAME:AddMessage("|cff33b2e5"..text)
 end
 
--- Cooldown numbers on item buttons. A short cooldown that starts on a blank
--- button is the global cooldown and stays hidden.
-function GearRack.WriteCooldown(where,start,duration)
-    local previous=where:GetText() or ""
-    local text=""
-    local left=start>0 and duration-(GetTime()-start) or 0
-    if left>0 and not (left<3 and previous=="") then
-        text=(left<60 and tostring(math.floor(left+.5))) or (left<3600 and math.ceil(left/60).." m")
-            or math.ceil(left/3600).." h"
-    end
-    if previous~=text then where:SetText(text) end
-end
-
 -- Flyout placement against its source, keyed MainDock..MenuDock.
 -- x/yoff: menu offset from the source; x/ydir: direction items are added;
 -- x/ystart: first item's offset; mx/my: offset from the equipment bar's buttons.
@@ -171,19 +158,12 @@ end
 function GearRack.GetSetsWithItem(link) return GearRackEngine.GetSetsWithItem(link) end
 function GearRack.GetQueuedSlotForItem(link) return GearRackTrinkets.GetQueuedSlotForItem(link) end
 function GearRack.IsEquipmentSwapActive() return GearRackEngine.IsEquipmentSwapActive() end
--- GearRack permanently owns numbers on its equipment and trinket widgets.
-function GearRack.HasCooldownNumbers(name)
-    if string.match(name or "","^GearRackUIInv%d+Cooldown$") or string.match(name or "","^GearRackUIMenu%d+Cooldown$")
-        or string.match(name or "","^GearRackTrinkets_Trinket[01]Cooldown$") or string.match(name or "","^GearRackTrinkets_Menu%d+Cooldown$") then
-        return true
-    end
-end
-
-function GearRack.StyleCooldownNumbers(font,button)
+-- The client draws the countdown numbers of a Cooldown frame while the
+-- player's countdownForCooldowns CVar is 1; GearRack only gives them its style.
+function GearRack.StyleCooldownNumbers(cooldown)
+    local font=cooldown:GetCountdownFontString()
     font:SetFont("Fonts\\FRIZQT__.TTF",16,"OUTLINE")
     font:SetTextColor(1,.82,0,1)
-    font:ClearAllPoints()
-    font:SetPoint("CENTER",button,"CENTER")
 end
 
 function GearRack.EquipSet(name) return GearRackUI_EquipSet(name) end
@@ -585,7 +565,7 @@ function GearRack.UIEvent(ev,unit,spellID,castType)
         if GearRackEngine.SwapRequest then GearRackEngine.OnItemLockChanged() end
         GearRack.Wake()
         return changed
-    elseif ev=="ACTIONBAR_UPDATE_COOLDOWN" then GearRackTrinkets.UpdateWornCooldowns(1);GearRack.Wake()
+    elseif ev=="ACTIONBAR_UPDATE_COOLDOWN" then GearRackTrinkets.UpdateWornCooldowns();GearRack.Wake()
     elseif ev=="UPDATE_BINDINGS" then
         GearRackTrinkets.ReflectKeyBindings()
     elseif ev=="SPELLCAST_STOP" or ev=="SPELLCAST_INTERRUPTED" or ev=="SPELLCAST_FAILED" or ev=="SPELLCAST_CHANNEL_STOP" then

@@ -2,19 +2,12 @@
 
 	<!-- Templates -->
 
-    <Frame name="GearRackUITimeTemplate" enableMouse="false" virtual="true">
-		<Size>
-			<AbsDimension x="36" y="12"/>
-		</Size>
-		<Anchors>
-			<Anchor point="BOTTOMRIGHT"/>
-		</Anchors>
-		<Layers>
-			<Layer level="OVERLAY">
-				<FontString name="$parentTime" inherits="NumberFontNormal" justifyH="CENTER"/>
-			</Layer>
-		</Layers>
-	</Frame>
+<!-- The cooldown sweep and its countdown numbers (countdownForCooldowns). -->
+	<Cooldown name="GearRackUICooldownTemplate" inherits="CooldownFrameTemplate" setAllPoints="true" enableMouse="false" minimumCountdownDuration="3000" virtual="true">
+		<Scripts>
+			<OnLoad>GearRack.StyleCooldownNumbers(this)</OnLoad>
+		</Scripts>
+	</Cooldown>
 
 	<Frame name="GearRackUIQueueTemplate" enableMouse="false" virtual="true">
 		<Size>
@@ -127,7 +120,7 @@ end
 </OnLeave>
 		</Scripts>
         <Frames>
-            <Frame inherits="GearRackUITimeTemplate"/>
+            <Cooldown name="$parentCD" inherits="GearRackUICooldownTemplate"/>
             <Frame inherits="GearRackUIQueueTemplate"/>
         </Frames>
 	</CheckButton>
@@ -164,7 +157,7 @@ end
 </OnLeave>
 		</Scripts>
         <Frames>
-            <Frame inherits="GearRackUITimeTemplate"/>
+            <Cooldown name="$parentCD" inherits="GearRackUICooldownTemplate"/>
         </Frames>
 	</CheckButton>
 

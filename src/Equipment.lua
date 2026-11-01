@@ -551,9 +551,9 @@ local function update_menu_cooldowns()
 		for i=1,GearRackUI.NumberOfItems do
 			if GearRackUI.BaggedItems[i].bag then
 				start, duration, enable = GetContainerItemCooldown(GearRackUI.BaggedItems[i].bag,GearRackUI.BaggedItems[i].slot)
-				CooldownFrame_SetTimer(_G["GearRackUIMenu"..i.."Cooldown"], start, duration, enable)
+				CooldownFrame_SetTimer(_G["GearRackUIMenu"..i.."CD"], start, duration, enable)
 			else
-				_G["GearRackUIMenu"..i.."Time"]:SetText("")
+				_G["GearRackUIMenu"..i.."CD"]:Clear()
 			end
 		end
 	end
@@ -567,7 +567,7 @@ local function update_inv_cooldowns()
 	if #GearRackDB.bars[user].Bar>0 then
 		for i=1,#GearRackDB.bars[user].Bar do
 			start, duration, enable = GearRack.GetInventoryCooldown(GearRackDB.bars[user].Bar[i])
-			CooldownFrame_SetTimer(_G["GearRackUIInv"..GearRackDB.bars[user].Bar[i].."Cooldown"], start, duration, enable)
+			CooldownFrame_SetTimer(_G["GearRackUIInv"..GearRackDB.bars[user].Bar[i].."CD"], start, duration, enable)
 		end
 	end
 
@@ -770,7 +770,6 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 		if not item then
 			item = CreateFrame("CheckButton", "GearRackUIMenu"..i, GearRackUI_MenuFrame, "GearRackUIMenuTemplate")
 			item:SetID(i)
-			GearRackUI_SetCooldownFont("GearRackUIMenu"..i)
 			_G["GearRackUIMenu"..i.."Border"]:SetVertexColor(.15,.25,1,1)
 			_G["GearRackUIMenu"..i.."Border"]:Hide()
 			GearRack.AddSetMacroHandle(item)
@@ -1181,7 +1180,6 @@ local function initialize_display()
 	GearRackUI_ChangeEventFont()
 
 	draw_inv() -- construct the bar
-	GearRackUI_SetAllCooldownFonts()
 	GearRackEngine.StartTimer("CooldownUpdate")
 end
 
@@ -2008,28 +2006,6 @@ local function notify(name)
 end
 GearRackUI_Notify = notify
 
--- Refresh only visible cooldown numbers, including immediately after an option change.
-function GearRackUI_UpdateCooldownNumbers()
-	local start,duration
-	if GearRackUI_InvFrame:IsVisible() then
-		for _,slot in ipairs(GearRackDB.bars[user].Bar) do
-			if slot < 20 then
-				start, duration = GearRack.GetInventoryCooldown(slot)
-				GearRack.WriteCooldown(_G["GearRackUIInv"..slot.."Time"],start,duration)
-			end
-		end
-	end
-	if GearRackUI_MenuFrame:IsVisible() and GearRackUI.InvOpen then
-		for i=1,GearRackUI.NumberOfItems do
-			local item = GearRackUI.BaggedItems[i]
-			if item.bag then
-				start, duration = GetContainerItemCooldown(item.bag,item.slot)
-				GearRack.WriteCooldown(_G["GearRackUIMenu"..i.."Time"],start,duration)
-			end
-		end
-	end
-end
-
 -- Notify list: a used item is tracked by ID wherever it moves on the player.
 local function notify_cooldown(itemID,watch)
 	local location
@@ -2055,7 +2031,6 @@ function GearRackUI_CooldownUpdate_OnUpdate()
 		GearRackUI.CooldownsNeedUpdating = false
 		update_inv_cooldowns()
 	end
-	GearRackUI_UpdateCooldownNumbers()
 	if GearRackUI_InvFrame:IsVisible() then
 		for slot=16,17 do
 			local button = _G["GearRackUIInv"..slot]
@@ -2077,23 +2052,6 @@ function GearRackUI_CooldownUpdate_OnUpdate()
 		for itemID,watch in pairs(GearRackUI.NotifyList) do
 			if notify_cooldown(itemID,watch) then GearRackUI.NotifyList[itemID] = nil end
 		end
-	end
-end
-
--- Apply the permanent large gold style to an equipment counter.
-function GearRackUI_SetCooldownFont(button)
-    GearRack.StyleCooldownNumbers(_G[button.."Time"],button)
-end
-
--- changes all cooldown fonts
-function GearRackUI_SetAllCooldownFonts()
-
-	for i=0,19 do
-		GearRackUI_SetCooldownFont("GearRackUIInv"..i)
-	end
-	-- Flyout buttons are created lazily; new ones receive the current font on creation.
-	for i=1,GearRackUI.MaxItems do
-		GearRackUI_SetCooldownFont("GearRackUIMenu"..i)
 	end
 end
 

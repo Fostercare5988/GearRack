@@ -234,13 +234,6 @@ function GearRackTrinkets.Initialize()
 	GearRackTrinkets.CreateTimer("TooltipUpdate",GearRackTrinkets.TooltipUpdate,1,1)
 	GearRackTrinkets.CreateTimer("CooldownUpdate",GearRackTrinkets.CooldownUpdate,1,1)
 
-	-- Cooldown spirals pass clicks to their buttons.
-	GearRackTrinkets_Trinket0Cooldown:EnableMouse(false)
-	GearRackTrinkets_Trinket1Cooldown:EnableMouse(false)
-	for i = 1, GearRackTrinkets.MaxTrinkets do
-		getglobal("GearRackTrinkets_Menu" .. i .. "Cooldown"):EnableMouse(false)
-	end
-
 	GearRackTrinkets.InitOptions()
 
 	GearRackTrinkets.UpdateWornTrinkets()
@@ -596,21 +589,17 @@ local function set_worn_cooldown(frame,start,duration,enable)
 	CooldownFrame_SetTimer(frame,start,duration,enable)
 end
 
-function GearRackTrinkets.UpdateWornCooldowns(maybeGlobal)
-	set_worn_cooldown(GearRackTrinkets_Trinket0Cooldown,GearRack.GetInventoryCooldown(13))
-	set_worn_cooldown(GearRackTrinkets_Trinket1Cooldown,GearRack.GetInventoryCooldown(14))
-	if not maybeGlobal then
-		GearRackTrinkets.WriteWornCooldowns()
-	end
+function GearRackTrinkets.UpdateWornCooldowns()
+	set_worn_cooldown(GearRackTrinkets_Trinket0CD,GearRack.GetInventoryCooldown(13))
+	set_worn_cooldown(GearRackTrinkets_Trinket1CD,GearRack.GetInventoryCooldown(14))
 end
 
 function GearRackTrinkets.UpdateMenuCooldowns()
 	local start,duration,enable
 	for i=1,GearRackTrinkets.NumberOfTrinkets do
 		start,duration,enable = GetContainerItemCooldown(GearRackTrinkets.BaggedTrinkets[i].bag,GearRackTrinkets.BaggedTrinkets[i].slot)
-		CooldownFrame_SetTimer(getglobal("GearRackTrinkets_Menu"..i.."Cooldown"),start,duration,enable)
+		CooldownFrame_SetTimer(getglobal("GearRackTrinkets_Menu"..i.."CD"),start,duration,enable)
 	end
-	GearRackTrinkets.WriteMenuCooldowns()
 end
 
 --[[ Item use ]]
@@ -835,30 +824,7 @@ function GearRackTrinkets.CooldownUpdate()
 		end
 	end
 
-	-- GearRack permanently owns cooldown numbers; only visible views need updates.
-	if GearRackTrinkets_MainFrame:IsVisible() then
-		GearRackTrinkets.WriteWornCooldowns()
-	end
-	if GearRackTrinkets_MenuFrame:IsVisible() then
-		GearRackTrinkets.WriteMenuCooldowns()
-	end
 	GearRackTrinkets.PeriodicQueueCheck()
-end
-
-function GearRackTrinkets.WriteWornCooldowns()
-	local start, duration
-	start, duration = GearRack.GetInventoryCooldown(13)
-	GearRack.WriteCooldown(GearRackTrinkets_Trinket0Time,start,duration)
-	start, duration = GearRack.GetInventoryCooldown(14)
-	GearRack.WriteCooldown(GearRackTrinkets_Trinket1Time,start,duration)
-end
-
-function GearRackTrinkets.WriteMenuCooldowns()
-	local start, duration
-	for i=1,GearRackTrinkets.NumberOfTrinkets do
-		start, duration = GetContainerItemCooldown(GearRackTrinkets.BaggedTrinkets[i].bag,GearRackTrinkets.BaggedTrinkets[i].slot)
-		GearRack.WriteCooldown(getglobal("GearRackTrinkets_Menu"..i.."Time"),start,duration)
-	end
 end
 
 function GearRackTrinkets.OnShow()
