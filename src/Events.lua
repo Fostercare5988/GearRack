@@ -94,7 +94,7 @@ GearRackUI_DefaultEvents = {
 		["script"] = "local travel = GearRackUI_GetForm()==\"Travel Form\"\nif travel and not GEARRACK_TRAVEL then\n  GearRack.EquipSet()\nelseif not travel and GEARRACK_TRAVEL then\n  GearRack.LoadSet()\nend\nGEARRACK_TRAVEL=travel\n--[[Equips a set while in travel form and restores it on leaving.]]",
 	},
 	["Mount"] = {
-		["trigger"] = "PLAYER_AURAS_CHANGED",
+		["trigger"] = "PLAYER_MOUNT_DISPLAY_CHANGED",
 		["delay"] = 0,
 		["script"] = "local mount = IsMounted()\nif not GEARRACK_MOUNT and mount then\n  GearRack.EquipSet()\nelseif GEARRACK_MOUNT and not mount then\n  GearRack.LoadSet()\nend\nGEARRACK_MOUNT=mount\n--[[Equips set to be worn while mounted.]]",
 	},
