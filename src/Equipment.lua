@@ -4727,6 +4727,16 @@ function GearRackEngine.AnyLocked()
 	end
 end
 
+-- Wait before re-issuing a swap the server may not have answered yet. A repeat
+-- sent before the first answer lands swaps the items back. 0.3 s on a normal
+-- connection; twice the latency plus a margin when that is longer, capped at 3 s.
+-- UNVERIFIED: test in game (GetNetStats third return = latency in ms).
+function GearRackEngine.RetryGap()
+	local _,_,latency = GetNetStats()
+	local gap = 2*(latency or 0)/1000 + .1
+	return gap < .3 and .3 or (gap > 3 and 3 or gap)
+end
+
 -- when an iteration begins, on each ITEM_LOCK_CHANGED check if the swaps are done
 -- if so, remove the current queue entry and go to the next one
 -- this is where swaps end
@@ -4781,13 +4791,13 @@ function GearRackEngine.OnItemLockChanged()
         elseif GearRack.GetEquipDelay(GearRackEngine.SlotInfo[intent.slot].swappable)>0 then
             queue.started=nil
             GearRackEngine.StartTimer("WaitToIterate",GearRack.GetEquipDelay())
-        elseif not locked and GetTime()-(queue.lastAttempt or 0)>=.3 then
+        elseif not locked and GetTime()-(queue.lastAttempt or 0)>=GearRackEngine.RetryGap() then
             queue.started=nil
             GearRackEngine.IterateSwapQueue()
         else GearRackEngine.StartTimer("WaitToIterate",.2) end
 	elseif GetTime()>=queue.deadline then
 		GearRackEngine.ShutdownQueue("Swap timed out before the requested equipment was observed.")
-	elseif not locked and not CursorHasItem() and GetTime()-(queue.lastAttempt or 0)>=.3 then
+	elseif not locked and not CursorHasItem() and GetTime()-(queue.lastAttempt or 0)>=GearRackEngine.RetryGap() then
 		-- In combat the client can refuse one weapon of a pair. Like single
 		-- choices, a set re-issues only the slots that do not match yet, every
 		-- 0.3 seconds, until the stage's deadline.
