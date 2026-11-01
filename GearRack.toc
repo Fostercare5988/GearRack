@@ -1,5 +1,4 @@
 ## Interface: 11200
-## Dependencies: !!!ClassicAPI
 ## X-SuperWoW-Min-Version: 2.2
 ## X-NamPower-Min-Version: 4.6.2
 ## Title: |cffff9e38GearRack|r |cffffd6a8[Fostercare5988]|r
