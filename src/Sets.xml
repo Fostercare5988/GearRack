@@ -1029,7 +1029,7 @@ end
 											<OnTextChanged>
 if GearRack.enabled then
 
-												local scrollBar = getglobal(this:GetParent():GetParent():GetName().."ScrollBar")
+												local scrollBar = _G[this:GetParent():GetParent():GetName().."ScrollBar"]
 												this:GetParent():GetParent():UpdateScrollChildRect()
 												local min
 												local max
@@ -2156,7 +2156,7 @@ end
 											<OnTextChanged>
 if GearRack.enabled then
 
-												local scrollBar = getglobal(this:GetParent():GetName().."ScrollBar")
+												local scrollBar = _G[this:GetParent():GetName().."ScrollBar"]
 												this:GetParent():UpdateScrollChildRect();
 												local min;
 												local max;

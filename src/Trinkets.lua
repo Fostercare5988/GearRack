@@ -6,6 +6,28 @@ local UI = ns.UI
 -- Trinket buttons, carried-item drawer and notifications.
 GearRackTrinkets = {}
 
+-- The Trinkets.xml buttons, each looked up once: worn[0|1] and menu[i] hold
+-- the button and its icon, cooldown and queue badge.
+local worn, menu = {}, {}
+local function Worn(which)
+	local w = worn[which]
+	if not w then
+		local name = "GearRackTrinkets_Trinket"..which
+		w = { button = _G[name], icon = _G[name.."Icon"], queue = _G[name.."Queue"] }
+		worn[which] = w
+	end
+	return w
+end
+local function Menu(i)
+	local m = menu[i]
+	if not m then
+		local name = "GearRackTrinkets_Menu"..i
+		m = { button = _G[name], icon = _G[name.."Icon"], cooldown = _G[name.."CD"] }
+		menu[i] = m
+	end
+	return m
+end
+
 function GearRackTrinkets.LoadDefaults()
 
 	local defaults = {
@@ -89,8 +111,8 @@ end
 -- hide the docking markers
 function GearRackTrinkets.ClearDocking()
 	for i=1,4 do
-		getglobal("GearRackTrinkets_MainDock_"..GearRackTrinkets.Corners[i]):Hide()
-		getglobal("GearRackTrinkets_MenuDock_"..GearRackTrinkets.Corners[i]):Hide()
+		_G["GearRackTrinkets_MainDock_"..GearRackTrinkets.Corners[i]]:Hide()
+		_G["GearRackTrinkets_MenuDock_"..GearRackTrinkets.Corners[i]]:Hide()
 	end
 end
 
@@ -167,8 +189,8 @@ function GearRackTrinkets.BuildMenu()
 		end
 
 		for i=1,GearRackTrinkets.NumberOfTrinkets do
-			local item = getglobal("GearRackTrinkets_Menu"..i)
-			getglobal("GearRackTrinkets_Menu"..i.."Icon"):SetTexture(GearRackTrinkets.BaggedTrinkets[i].texture)
+			local item = Menu(i).button
+			Menu(i).icon:SetTexture(GearRackTrinkets.BaggedTrinkets[i].texture)
 			GearRack.SetQualityBorder(item, GearRackTrinkets.BaggedTrinkets[i].quality, 12)
 			item:SetPoint("TOPLEFT","GearRackTrinkets_MenuFrame",GearRackCharDB.trinkets.MenuDock,xpos,ypos)
 
@@ -195,7 +217,7 @@ function GearRackTrinkets.BuildMenu()
 			end
 		end
 		for i=(GearRackTrinkets.NumberOfTrinkets+1),GearRackTrinkets.MaxTrinkets do
-			getglobal("GearRackTrinkets_Menu"..i):Hide()
+			Menu(i).button:Hide()
 		end
 		if col==0 then
 			row = row-1
@@ -256,8 +278,7 @@ end
 function GearRackTrinkets.UpdateWornTrinkets()
 	for which=0,1 do
 		local slot = 13+which
-		local button = getglobal("GearRackTrinkets_Trinket"..which)
-		local icon = getglobal("GearRackTrinkets_Trinket"..which.."Icon")
+		local button, icon = Worn(which).button, Worn(which).icon
 		icon:SetTexture((GearRackEngine.GetItemInfo(slot)))
 		icon:SetDesaturated(nil)
 		button:SetChecked(0)
@@ -506,8 +527,8 @@ function GearRackTrinkets.DockingMenu()
 		end
 	end
 	GearRackTrinkets.ClearDocking()
-	getglobal("GearRackTrinkets_MainDock_"..GearRackCharDB.trinkets.MainDock):Show()
-	getglobal("GearRackTrinkets_MenuDock_"..GearRackCharDB.trinkets.MenuDock):Show()
+	_G["GearRackTrinkets_MainDock_"..GearRackCharDB.trinkets.MainDock]:Show()
+	_G["GearRackTrinkets_MenuDock_"..GearRackCharDB.trinkets.MenuDock]:Show()
 end
 
 function GearRackTrinkets.MenuMouseover()
@@ -598,14 +619,14 @@ function GearRackTrinkets.UpdateMenuCooldowns()
 	local start,duration,enable
 	for i=1,GearRackTrinkets.NumberOfTrinkets do
 		start,duration,enable = GetContainerItemCooldown(GearRackTrinkets.BaggedTrinkets[i].bag,GearRackTrinkets.BaggedTrinkets[i].slot)
-		CooldownFrame_SetTimer(getglobal("GearRackTrinkets_Menu"..i.."CD"),start,duration,enable)
+		CooldownFrame_SetTimer(Menu(i).cooldown,start,duration,enable)
 	end
 end
 
 --[[ Item use ]]
 
 function GearRackTrinkets.ReflectTrinketUse(slot)
-	getglobal("GearRackTrinkets_Trinket"..(slot-13)):SetChecked(1)
+	Worn(slot-13).button:SetChecked(1)
 	GearRackTrinkets.StartTimer("UpdateWornTrinkets")
 	local itemID = GetInventoryItemID("player",slot)
 	if itemID then
@@ -745,7 +766,7 @@ function GearRackTrinkets.GetQueuedSlotForItem(link)
 end
 
 function GearRackTrinkets.ReflectQueueState(which,state)
-	local icon = getglobal("GearRackTrinkets_Trinket"..which.."Queue")
+	local icon = Worn(which).queue
 	local delayed,paused = state=="delay",state=="pause"
 	if icon.gearRackDelayed~=delayed then
 		icon.gearRackDelayed = delayed
@@ -761,7 +782,7 @@ function GearRackTrinkets.UpdateCombatQueue()
 	local bag,slot
 	for which=0,1 do
 		local trinket = GearRackTrinkets.CombatQueue[which]
-		local icon = getglobal("GearRackTrinkets_Trinket"..which.."Queue")
+		local icon = Worn(which).queue
 		icon:Hide()
 		local held = not trinket and GearRackCharDB.queues.Enabled[which]
 			and (GearRackCharDB.HeldQueues[which] or GearRackTrinkets.PausedQueue[which])
