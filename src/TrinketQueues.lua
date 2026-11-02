@@ -607,7 +607,7 @@ function GearRackTrinkets.ValidateProfile()
 	local saved = GearRackTrinkets.GetProfileID(name) and true or false
 	UI.SetEnabled(GearRackTrinkets_ProfilesDelete,saved)
 	UI.SetEnabled(GearRackTrinkets_ProfilesLoad,saved)
-	UI.SetEnabled(GearRackTrinkets_ProfilesSave,strlen(name)>0)
+	UI.SetEnabled(GearRackTrinkets_ProfilesSave,#name>0)
 end
 
 function GearRackTrinkets.ProfileName_OnTextChanged()

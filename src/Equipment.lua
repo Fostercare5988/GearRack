@@ -2386,7 +2386,7 @@ function validate_set_buttons()
 	end
 	setname = (found and setname) or nil
 
-	local canSave = setname and string.len(setname)>0
+	local canSave = setname and #setname>0
 	UI.SetEnabled(GearRackUI_Sets_SaveButton,canSave)
 	-- Save lights up while it has something to store (once Skin.lua has made its pill).
 	if GearRackUI_Sets_SaveButton.fill then
@@ -2485,7 +2485,7 @@ function GearRackUI_Sets_Save_OnClick()
 	_,_,_,itemslot = get_item_info(16)
 	local twoHand = itemslot=="INVTYPE_2HWEAPON"
 
-	if string.len(setname)>0 then
+	if #setname>0 then
 		if GearRackDB.sets[user].Sets[setname] then
 			-- grab old key binding before recreating set
 			oldkey = GearRackDB.sets[user].Sets[setname].key
@@ -3323,7 +3323,7 @@ function GearRackUI_EventButtons(v1)
 
 	elseif v1=="Save" then
 		local name = GearRackUI_EventName:GetText()
-		if name and string.len(name)>0 then
+		if name and #name>0 then
 			GearRackUI.CancelEvent(name)
 			if not GearRackDB.events[name] then
 				GearRackDB.events[name] = {}

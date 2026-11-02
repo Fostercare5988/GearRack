@@ -171,7 +171,7 @@ function GearRack.LoadSet(name) return GearRackUI_LoadSet(name) end
 function GearRack.ToggleSet(name) return GearRackUI_ToggleSet(name) end
 function GearRack.IsSetEquipped(name) return GearRackUI_IsSetEquipped(name) end
 function GearRack.SetTrinketQueue(which,action,...)
-    return GearRackTrinkets.SetQueue(which,action,unpack(arg))
+    return GearRackTrinkets.SetQueue(which,action,...)
 end
 
 function GearRack.HasPending()
