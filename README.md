@@ -11,11 +11,10 @@
 
 ## Requirements
 
-| Client extension | Minimum version |
-| --- | --- |
-| [ClassicAPI](https://github.com/brues-code/ClassicAPI) | 1.18.5 |
-| [SuperWoW](https://github.com/balakethelock/SuperWoW) | 2.2 |
-| [NamPower](https://github.com/Emyrk/nampower) | 4.6.2 |
+The latest release of each client extension, loaded:
+[ClassicAPI](https://github.com/brues-code/ClassicAPI),
+[SuperWoW](https://github.com/balakethelock/SuperWoW) and
+[NamPower](https://github.com/Emyrk/nampower).
 
 GearRack prints a message in chat if one is missing.
 

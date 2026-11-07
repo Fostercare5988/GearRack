@@ -3839,28 +3839,16 @@ function GearRackEngine.GetNameByID(itemID)
 	return name,texture
 end
 
--- returns true if the bagid (0-4) is a normal "Container", as opposed to quivers and ammo pouches
--- True for a general-purpose bag (not a quiver, ammo pouch or other special bag).
-function GearRackEngine.ValidBag(bagid)
-	if bagid==0 or bagid==-1 then return true end
-	if bagid<=4 then
-		local _,bagType = C_Container.GetContainerNumFreeSlots(bagid)
-		return bagType==0
-	end
-	-- Bank bags report no family from GetContainerNumFreeSlots; ask the bag item.
-	local link = GetInventoryItemLink("player",ContainerIDToInventoryID(bagid))
-	return link and C_Item.GetItemFamily(link)==0 or false
-end
-
+-- The first empty slot of a general-purpose bag (family 0: not a quiver, ammo
+-- pouch or other special bag) that no move has claimed. ClassicAPI answers the
+-- free slots and the family of the carried bags, and of the bank while it is
+-- open (1.19.3); a bag that is not there has no family.
 function GearRackEngine.FindSpaceInBag(bag)
-	if GearRackEngine.ValidBag(bag) then
-		for j=1,GetContainerNumSlots(bag) do
-			if not GearRackEngine.LockList[bag][j] then
-				if not C_Container.HasContainerItem(bag,j) then
-					return j
-				end
-			end
-		end
+	local free,family = C_Container.GetContainerNumFreeSlots(bag)
+	if family~=0 or free==0 then return end
+	local locks = GearRackEngine.LockList[bag]
+	for _,slot in ipairs(C_Container.GetContainerFreeSlots(bag)) do
+		if not locks[slot] then return slot end
 	end
 end
 
