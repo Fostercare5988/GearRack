@@ -50,7 +50,6 @@ function GearRackTrinkets.LoadDefaults()
 		MainScale = 1,				-- scaling of main window
 		MenuScale = 1,				-- scaling of menu window
 		Visible="ON",				-- whether to display the trinkets
-		ItemsUsed = {},				-- [itemID] = cooldown watch state of a used trinket
 	}
 	GearRackDB.trinketOptions = type(GearRackDB.trinketOptions)=="table" and GearRackDB.trinketOptions or {}
 	GearRackCharDB.trinkets = type(GearRackCharDB.trinkets)=="table" and GearRackCharDB.trinkets or {}
@@ -78,14 +77,6 @@ function GearRackTrinkets.LoadDefaults()
 		if per[key]~="HORIZONTAL" and per[key]~="VERTICAL" then per[key]=displayDefaults[key] end
 	end
 	if per.Visible~="ON" and per.Visible~="OFF" then per.Visible=displayDefaults.Visible end
-	per.ItemsUsed = type(per.ItemsUsed)=="table" and per.ItemsUsed or {}
-	for id, count in pairs(per.ItemsUsed) do
-		if type(id)~="number" or number(count, -1, 0)==-1 then
-			per.ItemsUsed[id] = nil
-		else
-			per.ItemsUsed[id] = tonumber(count)
-		end
-	end
 	if not GearRack.DockStats[tostring(per.MainDock or "")..tostring(per.MenuDock or "")] then
 		per.MainDock, per.MenuDock = "BOTTOMRIGHT", "BOTTOMLEFT"
 	end
@@ -100,7 +91,6 @@ GearRackTrinkets.NumberOfTrinkets = 0 -- number of trinkets in the menu
 GearRackTrinkets.CombatQueue = {} -- [0] or [1] = name of trinket queued for slot 0 or 1
 GearRackTrinkets.QueueItemIDs = {} -- runtime identities; names remain display/API input
 GearRackTrinkets.Corners = { "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }
-GearRackTrinkets.WatchItem = {} -- [itemID] = {inv=, bag=, slot=} last seen location
 
 -- returns offset and direction depending on current docking. ie: GearRackTrinkets.DockInfo("xoff")
 function GearRackTrinkets.DockInfo(arg1)
@@ -283,8 +273,6 @@ function GearRackTrinkets.UpdateWornTrinkets()
 		icon:SetDesaturated(nil)
 		button:SetChecked(0)
 		GearRack.SetQualityBorder(button, GetInventoryItemQuality("player", slot), 12)
-		local itemID = GetInventoryItemID("player", slot)
-		if itemID then GearRackTrinkets.AddWatchItem(itemID, slot) end
 	end
 	GearRackTrinkets.UpdateWornCooldowns()
 	if GearRackTrinkets_MenuFrame:IsVisible() then
@@ -628,11 +616,6 @@ end
 function GearRackTrinkets.ReflectTrinketUse(slot)
 	Worn(slot-13).button:SetChecked(1)
 	GearRackTrinkets.StartTimer("UpdateWornTrinkets")
-	local itemID = GetInventoryItemID("player",slot)
-	if itemID then
-		GearRackCharDB.trinkets.ItemsUsed[itemID] = 0 -- 0: not yet known whether a real cooldown started
-		GearRackTrinkets.AddWatchItem(itemID,slot)
-	end
 end
 
 --[[ Tooltips ]]
@@ -800,52 +783,16 @@ function GearRackTrinkets.UpdateCombatQueue()
 	end
 end
 
---[[ Cooldown watch ]]
+--[[ Queue clock ]]--
 
--- Remember where a used trinket is, by item ID; look it up again when it moved.
-function GearRackTrinkets.AddWatchItem(itemID,inv,bag,slot)
-	local watch = GearRackTrinkets.WatchItem[itemID] or {}
-	GearRackTrinkets.WatchItem[itemID] = watch
-	if not inv and not bag then
-		inv,bag,slot = watch.inv,watch.bag,watch.slot
-		local current = (inv and GetInventoryItemID("player",inv)) or (bag and C_Container.GetContainerItemID(bag,slot))
-		if current~=itemID then inv,bag,slot = GearRack.FindLocation(itemID,nil,true,true) end
-	end
-	watch.inv,watch.bag,watch.slot = inv,bag,slot
-end
-
--- ItemsUsed[id]: 0-3 while the cooldown settles, then 30 (alerts at 30 and 0)
--- or 5 (alert at 0 only); the entry ends when the trinket is ready.
+-- A running queue looks for a better trinket once a second; a paused or held
+-- one waits until it is resumed.
 function GearRackTrinkets.CooldownUpdate()
-	local used = GearRackCharDB.trinkets.ItemsUsed
-	for itemID,state in pairs(used) do
-		GearRackTrinkets.AddWatchItem(itemID)
-		local watch = GearRackTrinkets.WatchItem[itemID]
-		local start,duration
-		if watch.inv then start,duration = GearRack.GetInventoryCooldown(watch.inv)
-		elseif watch.bag then start,duration = GetContainerItemCooldown(watch.bag,watch.slot) end
-		if not start then
-			used[itemID] = nil
-		elseif state<3 then
-			used[itemID] = state+1
-		else
-			local remain = start>0 and duration-(GetTime()-start) or 0
-			if state<5 and remain>5 then
-				state = remain>29 and 30 or 5
-				used[itemID] = state
-				if state==5 then GearRack.ItemReady(GetItemInfo(itemID) or ("Item "..itemID),true) end
-			end
-			if state==30 and remain<30 and start>0 then
-				GearRack.ItemReady(GetItemInfo(itemID) or ("Item "..itemID),true)
-				used[itemID] = 5
-			elseif state==5 and start==0 then
-				GearRack.ItemReady(GetItemInfo(itemID) or ("Item "..itemID),false)
-			end
-			if start==0 then used[itemID] = nil end
-		end
-	end
-
 	GearRackTrinkets.PeriodicQueueCheck()
+	for which=0,1 do
+		if GearRackCharDB.queues.Enabled[which] and not GearRackCharDB.HeldQueues[which]
+			and not GearRackTrinkets.PausedQueue[which] then return 1 end
+	end
 end
 
 function GearRackTrinkets.OnShow()

@@ -163,13 +163,23 @@ local function update_enchant(btn, location)
 		overlay.duration:Show()
 		overlay:Show()
 	end
+	-- Seconds left, for the next label change; charges alone have no clock.
+	return type(expirationMs) == "number" and expirationMs > 0 and expirationMs / 1000 or nil
+end
+
+-- Seconds until a label for s seconds left next reads differently: the
+-- client's SecondsToTimeAbbrev counts in hours, minutes or seconds, and the
+-- two-minute line where the label turns red is a minute boundary.
+local function label_change(s)
+	local unit = (s > 3600 and 3600) or (s > 60 and 60) or 1
+	return s - (math.ceil(s / unit) - 1) * unit
 end
 
 local equippedEnchantLocations = { [16] = {equipmentSlotIndex=16}, [17] = {equipmentSlotIndex=17} }
 
 local function update_equipped_enchant(slotID, btn)
 	if slotID == 16 or slotID == 17 then
-		update_enchant(btn, equippedEnchantLocations[slotID])
+		return update_enchant(btn, equippedEnchantLocations[slotID])
 	elseif btn and btn.enchantOverlay then
 		btn.enchantOverlay:Hide()
 	end
@@ -179,7 +189,7 @@ local menuEnchantLocation = {}
 local function update_menu_weapon_enchant(btn, baggedItem)
 	if baggedItem and baggedItem.bag and baggedItem.slot then
 		menuEnchantLocation.bagID, menuEnchantLocation.slotIndex = baggedItem.bag, baggedItem.slot
-		update_enchant(btn, menuEnchantLocation)
+		return update_enchant(btn, menuEnchantLocation)
 	elseif btn and btn.enchantOverlay then
 		btn.enchantOverlay:Hide()
 	end
@@ -215,7 +225,6 @@ GearRackUI.TooltipSlot = nil -- bag or inventory slot number
 GearRackUI.MainDock = "" -- "TOPLEFT" "BOTTOMRIGHT" etc
 GearRackUI.MenuDock = ""
 
-GearRackUI.NotifyList = {} -- [itemID] = { name=, bag=0-4, slot=1-x, inv=0-19, hadcooldown=true/nil }
 GearRackUI.AmmoCounts = {} -- ["Heavy Shot"]=200, ["Thorium Arrow"]=982, etc
 GearRackUI.TrinketsPaired = false -- true if the two trinkets are next to each other
 
@@ -1301,6 +1310,7 @@ function GearRackUI_OnEvent(ev)
 		if a1=="player" and (dataChanged or GearRackDB.bars[user].Inv[0]) then
 			inventory_changed()
 		end
+		if a1=="player" then GearRackUI.EnchantLabelsChanged() end
 	elseif ev=="PLAYER_AURAS_CHANGED" then
 		GearRackUI_BuffsChanged()
 
@@ -1503,8 +1513,7 @@ function slot_enter()
 end
 
 function sheet_show()
-	update_equipped_enchant(16, CharacterMainHandSlot)
-	update_equipped_enchant(17, CharacterSecondaryHandSlot)
+	GearRackUI.EnchantLabelsChanged()
 end
 
 function sheet_hide()
@@ -1680,12 +1689,7 @@ function GearRackUI_ReactUseInventoryItem(slot)
 	GearRackEngine.StartTimer("InvUpdate",1.5) -- extra long wait
 
 	local item = itemID and GetItemInfo(itemID)
-	-- Trinkets have their own watcher (Trinkets.lua).
-	if GearRack.WantsReadyNotice() and item and slot~=13 and slot~=14 then
-		local watch = GearRackUI.NotifyList[itemID] or {}
-		GearRackUI.NotifyList[itemID] = watch
-		watch.name, watch.inv, watch.bag, watch.slot, watch.hadcooldown = item, slot, nil, nil, nil
-	end
+	GearRack.WatchUse(itemID, slot)
 	if GearRackDB.settings.EnableEvents=="ON" and item then
 		GearRackUI_RegisterFrame_OnEvent("GEARRACK_ITEMUSED", item, slot)
 	end
@@ -2015,27 +2019,20 @@ local function notify(name)
 end
 GearRackUI_Notify = notify
 
--- Notify list: a used item is tracked by ID wherever it moves on the player.
-local function notify_cooldown(itemID,watch)
-	local location
-	if watch.inv then location = GetInventoryItemID("player",watch.inv)
-	elseif watch.bag then location = C_Container.GetContainerItemID(watch.bag,watch.slot) end
-	if location ~= itemID then
-		watch.inv,watch.bag,watch.slot = GearRack.FindLocation(itemID,nil,true,true)
-		if not watch.inv and not watch.bag then return true end
-	end
-	local start,duration
-	if watch.inv then start,duration = GearRack.GetInventoryCooldown(watch.inv)
-	else start,duration = GetContainerItemCooldown(watch.bag,watch.slot) end
-	local left = start==0 and 0 or duration-(GetTime()-start)
-	if left>3 then watch.hadcooldown = true end
-	if watch.hadcooldown and (left<=0 or (GearRackDB.settings.NotifyThirty=="ON" and left<30)) then
-		notify(watch.name)
-		return true
+-- The seconds until the next shown enchant label changes, while one is shown.
+local soonest
+local function track(seconds)
+	if seconds then
+		local wait = label_change(seconds)
+		if not soonest or wait < soonest then soonest = wait end
 	end
 end
 
+-- Cooldown spirals that need a redraw, and the enchant labels on the bar, the
+-- character window and a weapon flyout. Returns the seconds until a label
+-- changes, or nil when no timed label is shown.
 function GearRackUI_CooldownUpdate_OnUpdate()
+	soonest = nil
 	if GearRackUI.CooldownsNeedUpdating then
 		GearRackUI.CooldownsNeedUpdating = false
 		update_inv_cooldowns()
@@ -2043,25 +2040,28 @@ function GearRackUI_CooldownUpdate_OnUpdate()
 	if GearRackUI_InvFrame:IsVisible() then
 		for slot=16,17 do
 			local button = barButton[slot]
-			if button:IsVisible() then update_equipped_enchant(slot, button) end
+			if button:IsVisible() then track(update_equipped_enchant(slot, button)) end
 		end
 	end
 	if PaperDollFrame:IsVisible() then
-		update_equipped_enchant(16, CharacterMainHandSlot)
-		update_equipped_enchant(17, CharacterSecondaryHandSlot)
+		track(update_equipped_enchant(16, CharacterMainHandSlot))
+		track(update_equipped_enchant(17, CharacterSecondaryHandSlot))
 	end
 	if GearRackUI_MenuFrame:IsVisible() and (GearRackUI.InvOpen == 16 or GearRackUI.InvOpen == 17) then
 		for i=1,GearRackUI.NumberOfItems do
 			if GearRackUI.BaggedItems[i].bag then
-				update_menu_weapon_enchant(menuButton[i], GearRackUI.BaggedItems[i])
+				track(update_menu_weapon_enchant(menuButton[i], GearRackUI.BaggedItems[i]))
 			end
 		end
 	end
-	if GearRack.WantsReadyNotice() then
-		for itemID,watch in pairs(GearRackUI.NotifyList) do
-			if notify_cooldown(itemID,watch) then GearRackUI.NotifyList[itemID] = nil end
-		end
-	end
+	return soonest
+end
+
+-- A poison put on, a charge used or the character window opened: the labels
+-- change now, and the timer wakes for the next change if it would sleep longer.
+function GearRackUI.EnchantLabelsChanged()
+	local wait = GearRackUI_CooldownUpdate_OnUpdate()
+	if wait then GearRackEngine.StartTimer("CooldownUpdate", wait + .05, true) end
 end
 
 --[[ Options ]]--
@@ -3376,6 +3376,22 @@ local function release_trigger(trigger)
 	end
 	if trigger=="GEARRACK_DODGED" and not GearRackUI.Register.COMBAT_LOG_EVENT_UNFILTERED then
 		GearRackUI_RegisterFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+	elseif trigger=="GEARRACK_BUFFS_CHANGED" then
+		GearRackUIFrame:UnregisterEvent("PLAYER_AURAS_CHANGED")
+	end
+end
+
+-- GearRackUI.Buffs: the player's buff names and icons. A GEARRACK_BUFFS_CHANGED
+-- event keeps it current through the game's aura event; otherwise it is read
+-- just before a script runs, so no aura change is read for nothing.
+local buffSlots = {}
+local function read_buffs()
+	table.wipe(GearRackUI.Buffs)
+	local _,count = C_UnitAuras.GetAuraSlots("player", "HELPFUL", nil, nil, buffSlots)
+	for s = 1, count do
+		local name,icon = C_UnitAuras.UnitAuraBySlot("player", buffSlots[s])
+		if name then GearRackUI.Buffs[name] = 1 end
+		if icon then GearRackUI.Buffs[icon] = 1 end
 	end
 end
 
@@ -3391,6 +3407,9 @@ function GearRackUI_EnableEvent(eventname)
 		GearRackUI.Register[trigger] = {}
 		if trigger=="GEARRACK_DODGED" then
 			GearRackUI_RegisterFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+		elseif trigger=="GEARRACK_BUFFS_CHANGED" then
+			read_buffs()
+			GearRackUIFrame:RegisterEvent("PLAYER_AURAS_CHANGED")
 		end
 	end
 	GearRackUI.Register[trigger][eventname] = 1
@@ -3434,7 +3453,6 @@ function GearRackUI_EnableAllEvents()
 				GearRackUI_DisableEvent(i)
 			end
 		end
-		GearRackUIFrame:RegisterEvent("PLAYER_AURAS_CHANGED")
 	else
 		GearRackUI_DisableAllEvents()
 	end
@@ -3478,6 +3496,7 @@ function GearRackUI.RunEventScript(script,eventname,setname,a1,a2)
 		if saved then compiledEventScripts[definition] = {source=script,func=func,err=err} end
 	end
 	if func then
+		if not GearRackUI.Register.GEARRACK_BUFFS_CHANGED then read_buffs() end
 		local oldSet,oldName = GearRackUI.EventSetName,GearRackUI.EventEventName
 		local oldThis,oldEvent,oldArg1,oldArg2 = this,event,arg1,arg2
 		GearRackUI.EventSetName,GearRackUI.EventEventName = setname,eventname
@@ -3614,16 +3633,10 @@ function GearRackUI_GetForm()
 	end
 end
 
--- gathers active buffs into GearRackUI.Buffs and sends it via RegisterFrame for events
-local buffSlots = {}
+-- The player's buffs changed while a GEARRACK_BUFFS_CHANGED event waits for it:
+-- read them and pass them on as arg1.
 function GearRackUI_BuffsChanged()
-	table.wipe(GearRackUI.Buffs)
-	local _,count = C_UnitAuras.GetAuraSlots("player", "HELPFUL", nil, nil, buffSlots)
-	for s = 1, count do
-		local name,icon = C_UnitAuras.UnitAuraBySlot("player", buffSlots[s])
-		if name then GearRackUI.Buffs[name] = 1 end
-		if icon then GearRackUI.Buffs[icon] = 1 end
-	end
+	read_buffs()
 	local oldarg1 = arg1
 	arg1=GearRackUI.Buffs
 	GearRackUI_RegisterFrame_OnEvent("GEARRACK_BUFFS_CHANGED")
@@ -3682,7 +3695,7 @@ function GearRackEngine.Initialize()
 	GearRackEngine.CreateTimer("ScaleUpdate",GearRackEngine.ScaleUpdate,.1,1) -- scaling
 	GearRackEngine.CreateTimer("TooltipUpdate",GearRackEngine.TooltipUpdate,1,1) -- tooltip update
 	GearRackEngine.CreateTimer("ControlFrame",GearRackEngine.ControlFrame,.75,1) -- controls on bar
-	GearRackEngine.CreateTimer("CooldownUpdate",GearRackUI_CooldownUpdate_OnUpdate,1,1) -- cooldown/notify
+	GearRackEngine.CreateTimer("CooldownUpdate",GearRack.CooldownUpdate,1) -- wakes when a label, alert or queue needs it
 	GearRackEngine.CreateTimer("MenuFrame",GearRackEngine.MenuFrame,.25,1) -- menu mouseover check
 	GearRackEngine.CreateTimer("InvUpdate",GearRackUI_InvUpdate_OnUpdate,.05,1) -- one redraw per burst of changes, a few frames later
 	GearRackEngine.CreateTimer("BankTransferCheck",GearRackEngine.ReconcileBankTransfer,.2)

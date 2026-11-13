@@ -148,6 +148,17 @@ function GearRack.NormalizeSavedData()
     for _,character in pairs(GearRackDB.sets) do
         if type(character)=="table" and type(character.Sets)=="table" then character.Sets["GearRackEngine-CombatQueue"]=nil end
     end
+    -- Ready watches: one table for every used item (trinkets kept theirs apart before).
+    local used=GearRackCharDB.ItemsUsed
+    if type(used)~="table" then used=type(GearRackCharDB.trinkets)=="table" and GearRackCharDB.trinkets.ItemsUsed end
+    GearRackCharDB.ItemsUsed={}
+    if type(used)=="table" then
+        for itemID,state in pairs(used) do
+            if type(itemID)=="number" and (state==30 or state==5) then GearRackCharDB.ItemsUsed[itemID]=state
+            elseif type(itemID)=="number" and type(state)=="number" and state>=0 and state<=3 then GearRackCharDB.ItemsUsed[itemID]=0 end
+        end
+    end
+    if type(GearRackCharDB.trinkets)=="table" then GearRackCharDB.trinkets.ItemsUsed=nil end
     if type(GearRackCharDB.KeepManualTrinkets)~="boolean" then GearRackCharDB.KeepManualTrinkets=true end
     if type(GearRackCharDB.HeldQueues)~="table" then GearRackCharDB.HeldQueues={} end
     GearRackDB.schema=1
@@ -329,6 +340,67 @@ function GearRack.ItemReady(name,soon)
     end
 end
 
+-- Ready alerts for used items: one watch per item ID, wherever the item moves.
+-- A watch gives the item three seconds to start its cooldown, then looks again
+-- when 30 seconds are left and when it is ready, not every second.
+-- GearRackCharDB.ItemsUsed[itemID]: 0 while it waits for the cooldown, 30 with
+-- both looks ahead, 5 with only the ready look left. It survives a reload.
+local watches={} -- [itemID] = {inv=, bag=, slot=, since=}
+
+function GearRack.WatchUse(itemID,inv)
+    if not itemID or not GearRack.WantsReadyNotice() then return end
+    local watch=watches[itemID] or {}
+    watches[itemID]=watch
+    watch.inv,watch.bag,watch.slot,watch.since=inv,nil,nil,GetTime()
+    GearRackCharDB.ItemsUsed[itemID]=0
+    GearRackEngine.StartTimer("CooldownUpdate",1,true)
+end
+
+local function watched_cooldown(itemID,watch)
+    local current=(watch.inv and GetInventoryItemID("player",watch.inv))
+        or (watch.bag and C_Container.GetContainerItemID(watch.bag,watch.slot))
+    if current~=itemID then watch.inv,watch.bag,watch.slot=GearRack.FindLocation(itemID,nil,true,true) end
+    if watch.inv then return GearRack.GetInventoryCooldown(watch.inv) end
+    if watch.bag then return GetContainerItemCooldown(watch.bag,watch.slot) end
+end
+
+local function item_name(itemID)
+    return GetItemInfo(itemID) or ("Item "..itemID)
+end
+
+-- Gives the alerts that are due; returns the seconds until the next look, or nil.
+function GearRack.UpdateReadyWatch()
+    local used,now,wake=GearRackCharDB.ItemsUsed,GetTime()
+    for itemID,state in pairs(used) do
+        local watch=watches[itemID]
+        if not watch then watch={since=now};watches[itemID]=watch end -- after a reload
+        local start,duration=watched_cooldown(itemID,watch)
+        local left=start and start>0 and duration-(now-start) or 0
+        local look
+        if not start then
+            state=nil -- no longer carried
+        elseif state==0 then
+            if left>5 then
+                state=left>29 and 30 or 5
+                if state==5 then GearRack.ItemReady(item_name(itemID),true) end
+            elseif now-watch.since<3 then look=1
+            else state=nil end -- no cooldown started
+        end
+        if state==30 then
+            if left<30 then GearRack.ItemReady(item_name(itemID),true);state=5
+            else look=left-30 end
+        end
+        if state==5 then
+            if left<=0 then GearRack.ItemReady(item_name(itemID),false);state=nil
+            else look=left end
+        end
+        used[itemID]=state
+        if not state then watches[itemID]=nil end
+        if look and (not wake or look<wake) then wake=look end
+    end
+    return wake
+end
+
 function GearRack.GetInventoryCooldown(slot)
     local cache=GearRack.CooldownRead
     if not cache then return GetInventoryItemCooldown("player",slot) end
@@ -341,18 +413,27 @@ function GearRack.GetInventoryCooldown(slot)
     return cd[1],cd[2],cd[3]
 end
 
+-- The enchant labels, ready watches and trinket queues each say when they next
+-- need a look; the timer wakes for the soonest and sleeps while none does.
+local cooldownCache,wake={},nil
+local function soonest(seconds)
+    if seconds and (not wake or seconds<wake) then wake=seconds end
+end
 local function update_cooldown_views()
-    GearRackUI_CooldownUpdate_OnUpdate()
-    GearRackTrinkets.CooldownUpdate()
+    soonest(GearRackUI_CooldownUpdate_OnUpdate())
+    soonest(GearRack.UpdateReadyWatch())
+    soonest(GearRackTrinkets.CooldownUpdate())
 end
 
-local cooldownCache={}
 function GearRack.CooldownUpdate()
     GearRack.cooldownGeneration=(GearRack.cooldownGeneration or 0)+1
     GearRack.CooldownRead=cooldownCache
+    wake=nil
     -- An error goes to the error handler with its stack; the cache closes either way.
     xpcall(update_cooldown_views,geterrorhandler())
     GearRack.CooldownRead=nil
+    -- Just past the moment, so a label or an alert has crossed its line.
+    if wake then GearRackEngine.StartTimer("CooldownUpdate",math.max(wake+.05,.1)) end
 end
 
 function GearRack.KeepManualTrinket(slot)
@@ -629,8 +710,6 @@ function GearRack.Initialize()
     GearRackTrinkets.Initialize()
     GearRackEngine.CreateTimer("GearInventory",GearRack.RefreshInventory,.05)
     GearRackEngine.CreateTimer("GearRequests",GearRack.Pump,.2)
-    GearRackEngine.StopTimer("CooldownUpdate")
-    GearRackEngine.CreateTimer("CooldownUpdate",GearRack.CooldownUpdate,1,1)
     GearRack.initialized=true
     GearRack.RefreshEquippedItemIDs()
     GearRack.InvalidateBag()

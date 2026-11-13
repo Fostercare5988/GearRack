@@ -77,6 +77,7 @@ function GearRackTrinkets.ReflectQueueEnabled()
 		_G["GearRackTrinkets_Trinket"..which.."Check"]:SetChecked(GearRackCharDB.queues.Enabled[which] and not GearRackCharDB.HeldQueues[which] and not GearRackTrinkets.PausedQueue[which])
 	end
 	GearRackTrinkets.UpdateCombatQueue()
+	GearRackEngine.StartTimer("CooldownUpdate",.1,true)
 end
 
 function GearRackTrinkets.OpenSort(which)
