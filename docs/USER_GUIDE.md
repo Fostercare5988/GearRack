@@ -22,6 +22,8 @@ Buttons inside each editor switch between **Gear sets** and **Trinkets**. **Back
 
 Open `/gr sets`, select the slots, enter a name, choose an icon and save. Partial sets leave other slots alone. The **X/20** count includes selected slots and explicit empty-slot choices. Save again to keep edits to an existing set.
 
+A set remembers the exact copy of each item it saved, so two identical weapons with different poisons can belong to two sets. If that copy is gone (sold, banked or replaced), any copy of the item does. Sets saved before this keep matching any copy until you save them again.
+
 Choosing a saved set takes priority for every slot it contains. Armor and trinkets wait for combat to end; eligible weapons may change during combat. With **Keep manual choices** enabled (the default), trinket slots included in the set remain protected from their priority queues until you resume them using the queue checkbox or Alt-click. If the option is off, automatic queues may continue after the whole set finishes. Slots omitted from the set keep their existing queue and hold settings.
 
 Bind a set with **Bind Key** or WoW's Key Bindings menu. The menu supports account/character profiles and two keys per action. **Bind Key** replaces that set's keys; Escape during capture clears them. Closing the editor cancels unfinished capture.

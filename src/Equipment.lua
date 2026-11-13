@@ -2374,7 +2374,7 @@ local function set_has_changes(setname)
 		if chosen ~= (saved[i]~=nil) then return true end
 		if chosen then
 			local _,id = GearRackEngine.GetItemInfo(i)
-			if saved[i].id~=id then return true end
+			if saved[i].id~=id or (saved[i].guid and saved[i].guid~=GearRack.EquippedGUID(i)) then return true end
 		end
 	end
 	return false
@@ -2510,6 +2510,7 @@ function GearRackUI_Sets_Save_OnClick()
 				_,_,itemname = get_item_info(i)
 				GearRackDB.sets[user].Sets[setname][i].name = itemname or "(empty)"
 				_,GearRackDB.sets[user].Sets[setname][i].id = GearRackEngine.GetItemInfo(i)
+				GearRackDB.sets[user].Sets[setname][i].guid = i>0 and GearRack.EquippedGUID(i) or nil
 			end
 		end
 		sets_message(string.format(GearRackUIText.SAVED,setname,itemcount))
@@ -3849,11 +3850,20 @@ function GearRackEngine.FindItem(itemID,itemName,passive)
     return inv,bag,slot
 end
 
--- performs a FindItem on a set entry ([0]-[19]) and updates itemid if one wasn't there
+-- Whether the item with this GUID is carried or worn.
+function GearRackEngine.HasInstance(guid)
+	if GearRack.GetCarriedItems() and GearRack.ByGUID[guid] then return true end
+	for slot=1,19 do
+		if GearRack.EquippedGUID(slot)==guid then return true end
+	end
+end
+
+-- A set slot's item: its saved copy (GUID) when that is carried or worn, else any
+-- copy by item and name. Fills in the item ID when only the name was known.
 function GearRackEngine.FindSetItem(setslot)
 	local inv,bag,slot
-	if setslot.guid then inv,bag,slot=GearRack.FindLocation(setslot.id,setslot.name,nil,true,setslot.guid)
-	else inv,bag,slot=GearRackEngine.FindItem(setslot.id,setslot.name) end
+	if setslot.guid then inv,bag,slot=GearRack.FindLocation(setslot.id,setslot.name,nil,true,setslot.guid) end
+	if not inv and not bag then inv,bag,slot=GearRackEngine.FindItem(setslot.id,setslot.name) end
 	if not setslot.id and setslot.name and (inv or bag or slot) then
 		setslot.id = GearRackEngine.GetItemID(setslot.name)
 	end
@@ -4046,7 +4056,7 @@ function GearRackEngine.CompleteSwapRequest(request)
 		local ownsDefinition=owns_saved_definition(request.setname,request.definitionOwner)
 		if request.undo and saved and ownsDefinition and not request.undoOf and request.setname~="GearRackEngine-CombatQueue" then
 			for i=0,19 do
-				if request.undo[i] and saved[i] then saved[i].old = request.undo[i] end
+				if request.undo[i] and saved[i] then saved[i].old,saved[i].oldguid = request.undo[i],request.undoGUIDs[i] end
 			end
 			saved.oldsetname = request.previousSetName
 			GearRackEngine.SwapUndo[request.setname] = request.implicitUndo
@@ -4056,7 +4066,7 @@ function GearRackEngine.CompleteSwapRequest(request)
 		if request.undoOf and GearRackEngine.UndoToken[request.undoOf]==request.sourceUndoToken then
 			local old = GearRackDB.sets[user].Sets[request.undoOf]
 			if old and owns_saved_definition(request.undoOf,request.undoMetadataOwner) then
-				for i=0,19 do if old[i] then old[i].old = nil end end
+				for i=0,19 do if old[i] then old[i].old,old[i].oldguid = nil,nil end end
 				old.oldsetname = nil
 			end
 			GearRackEngine.ForgetSetUndo(request.undoOf)
@@ -4117,8 +4127,14 @@ function GearRackEngine.EquipSet(setname,restoreSetName,context)
 		return
 	end
 
+	-- A saved copy that is no longer carried or worn gives way to any copy of the item.
 	for i=0,19 do
-		if definition[i] then set[i] = { id=definition[i].id, name=definition[i].name, guid=definition[i].guid } end
+		local item = definition[i]
+		if item then
+			local guid = item.guid
+			if guid and not GearRackEngine.HasInstance(guid) then guid = nil end
+			set[i] = { id=item.id, name=item.name, guid=guid }
+		end
 	end
 	set.showhelm,set.showcloak = definition.showhelm,definition.showcloak
 	-- Accept a set once, when requested. A later item click must survive even
@@ -4202,7 +4218,7 @@ function GearRackEngine.EquipSet(setname,restoreSetName,context)
 	end
 	GearRackEngine.SwapRequest = request
 	GearRackEngine.SetSwapping = setname
-	request.undo,request.implicitUndo,request.undoToken = {},{},{}
+	request.undo,request.undoGUIDs,request.implicitUndo,request.undoToken = {},{},{},{}
 	request.previousSetName = GearRackDB.sets[user].CurrentSet
 
 	-- pre-scan for items that don't need to move
@@ -4224,6 +4240,7 @@ function GearRackEngine.EquipSet(setname,restoreSetName,context)
 					request.implicitUndo[i] = id
 				else
 					request.undo[i] = id
+					request.undoGUIDs[i] = i>0 and GearRack.EquippedGUID(i) or nil
 				end
 			end
 		end
@@ -4796,6 +4813,9 @@ function GearRackEngine.IsSetEquipped(setname)
 				end
 				if set[i].id ~= id then
 					missing = 1
+				elseif set[i].guid and not GearRackEngine.CombatQueue[i] and GearRack.EquippedGUID(i)~=set[i].guid
+					and GearRackEngine.HasInstance(set[i].guid) then
+					missing = 1
 				end
 			end
 		end
@@ -4825,7 +4845,7 @@ function GearRackEngine.UnequipSet(setname)
 	local historyOwner=GearRackEngine.UndoOwner[setname]
 	if not source and historyOwner and not owns_saved_definition(setname,historyOwner) then
 		if old==historyOwner.definition then
-			for i=0,19 do if old[i] then old[i].old=nil end end
+			for i=0,19 do if old[i] then old[i].old,old[i].oldguid=nil,nil end end
 			old.oldsetname=nil
 		end
 		GearRackEngine.ForgetSetUndo(setname)
@@ -4834,10 +4854,11 @@ function GearRackEngine.UnequipSet(setname)
 	local items = {}
 	local implicit = source and source.implicitUndo or GearRackEngine.SwapUndo[setname]
 	for i=0,19 do
-		local id
-		if source then id = source.undo[i] elseif old[i] then id = old[i].old end
-		if implicit and implicit[i] then id = implicit[i] end
-		if id then items[i] = { id=id } end
+		local id,guid
+		if source then id,guid = source.undo[i],source.undoGUIDs[i]
+		elseif old[i] then id,guid = old[i].old,old[i].oldguid end
+		if implicit and implicit[i] then id,guid = implicit[i],nil end
+		if id then items[i] = { id=id, guid=guid } end
 	end
 	local restoreSetName = old.oldsetname
 	local token = GearRackEngine.UndoToken[setname]
@@ -5244,11 +5265,12 @@ function GearRackEngine.PullSetFromBank(setname)
 		if set[i] then
 			if GearRackUI.BankedItems[set[i].id] then
 				bag,slot = GearRackEngine.FindBankedItem(set[i].id,set[i].guid)
+				if not bag and set[i].guid then bag,slot = GearRackEngine.FindBankedItem(set[i].id) end
 				if bag then
 					freeBag,freeSlot = GearRackEngine.FindSpace()
 					if freeBag then
 						if not GearRackEngine.SendBankItem({bagID=bag,slotIndex=slot},
-							{bagID=freeBag,slotIndex=freeSlot},set[i].id,set[i].guid) then break end
+							{bagID=freeBag,slotIndex=freeSlot},set[i].id,GearRack.BagGUID(bag,slot)) then break end
 					else
 						GearRackEngine.NoMoreRoom()
 						break
@@ -5276,10 +5298,10 @@ function GearRackEngine.PushSetToBank(setname)
 				if set[i].id and currentID ~= set[i].id then break end
 				if inv then
 					if not GearRackEngine.SendBankItem({equipmentSlotIndex=inv},
-						{bagID=freeBag,slotIndex=freeSlot},set[i].id,set[i].guid) then break end
+						{bagID=freeBag,slotIndex=freeSlot},set[i].id,GearRack.EquippedGUID(inv)) then break end
 				elseif bag then
 					if not GearRackEngine.SendBankItem({bagID=bag,slotIndex=slot},
-						{bagID=freeBag,slotIndex=freeSlot},set[i].id,set[i].guid) then break end
+						{bagID=freeBag,slotIndex=freeSlot},set[i].id,GearRack.BagGUID(bag,slot)) then break end
 				end
 			else
 				GearRackEngine.NoMoreRoom()

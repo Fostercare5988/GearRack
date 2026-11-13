@@ -48,8 +48,9 @@ right poison every time you pick a target, even mid-fight.
 | 🟢 **Instant** | Satyr's Claw (+5 Weapon Damage) | Distracting Dagger | Instant Poison VI | everything else |
 | 🟣 **Dissolvent** | Satyr's Claw (Crusader) | Anasterian's Legacy | Dissolvent Poison II | Elemental, Giant, Mechanical, Undead |
 
-GearRack tells the two Satyr's Claws apart by their enchant, and poisons stay on
-the weapons waiting in your bags.
+A set remembers the exact copy of each item, so even two identical daggers with
+different poisons belong to different sets. Poisons stay on the weapons waiting
+in your bags.
 
 **1. Save two sets.** Wear each pair, open `/gr` → **Sets**, light up only the main
 hand and off hand, type the name and press **Save**.
