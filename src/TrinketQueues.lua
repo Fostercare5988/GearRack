@@ -51,7 +51,8 @@ function GearRackTrinkets.QueueInit()
 			stats.priority = (stats.priority==1 or stats.priority==true) and 1 or nil
 			stats.keep = (stats.keep==1 or stats.keep==true) and 1 or nil
 			-- Existing string keys win over a duplicate numeric template key.
-			if not statsByID[key] or id==key then statsByID[key] = stats end
+			-- An entry with nothing set (a box ticked and cleared) is dropped.
+			if (stats.delay or stats.priority or stats.keep) and (not statsByID[key] or id==key) then statsByID[key] = stats end
 		end
 	end
 	GearRackCharDB.queues.Stats = statsByID

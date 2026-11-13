@@ -35,17 +35,22 @@ local UI = ns.UI
 -- Tooltip lines that name a click action use the ForgeUI heading color.
 local ACTION = UI.heading
 
--- Named XML parts on busy paths (the cooldown tick, menu close), looked up once:
--- Equipment.xml makes the bar's after this file runs, BuildMenu the flyout's.
+-- Named XML parts on busy paths (bar redraws, flyouts, the cooldown tick),
+-- looked up once: Equipment.xml makes the bar's after this file runs,
+-- BuildMenu the flyout's. A part that does not exist yet is not remembered.
 local function named(prefix, suffix)
 	return setmetatable({}, { __index = function(parts, i)
-		local frame = _G[prefix .. i .. (suffix or "")]
+		local frame = rawget(_G, prefix .. i .. (suffix or ""))
 		rawset(parts, i, frame)
 		return frame
 	end }) -- vanillaforge-ignore: D2 (four lookups, built once at load)
 end
 local barButton, barCooldown = named("GearRackUIInv"), named("GearRackUIInv", "CD")
+local barIcon, barHotKey = named("GearRackUIInv", "Icon"), named("GearRackUIInv", "HotKey")
 local menuButton, menuCooldown = named("GearRackUIMenu"), named("GearRackUIMenu", "CD")
+local menuIcon, menuBorder = named("GearRackUIMenu", "Icon"), named("GearRackUIMenu", "Border")
+local menuName, menuCount, menuHotKey = named("GearRackUIMenu", "Name"), named("GearRackUIMenu", "Count"), named("GearRackUIMenu", "HotKey")
+local setsInv, setsInvIcon = named("GearRackUI_Sets_Inv"), named("GearRackUI_Sets_Inv", "Icon")
 
 local function apply_inv_quality_border(button, slot)
 	GearRack.SetQualityBorder(button, slot ~= 20 and GetInventoryItemQuality("player", slot), 16)
@@ -618,41 +623,18 @@ local function populate_baggeditems(idx,bag,slot,name,texture,id,quality,guid)
 	GearRackUI.BaggedItems[idx].guid = guid
 end
 
--- to minimize garbage creation, tables are manipulated by copying values instead of tables
-local function copy_baggeditems(source,dest)
-
-	if not GearRackUI.BaggedItems[dest] then
-		GearRackUI.BaggedItems[dest] = {}
-	end
-	GearRackUI.BaggedItems[dest].bag = GearRackUI.BaggedItems[source].bag
-	GearRackUI.BaggedItems[dest].slot = GearRackUI.BaggedItems[source].slot
-	GearRackUI.BaggedItems[dest].name = GearRackUI.BaggedItems[source].name
-	GearRackUI.BaggedItems[dest].texture = GearRackUI.BaggedItems[source].texture
-	GearRackUI.BaggedItems[dest].id = GearRackUI.BaggedItems[source].id
-	GearRackUI.BaggedItems[dest].quality = GearRackUI.BaggedItems[source].quality
-	GearRackUI.BaggedItems[dest].guid = GearRackUI.BaggedItems[source].guid
-end
-
--- sorts menu up to stop_point, which is idx+1 usually (sort uses stop_point as a temp spot for swapping)
-local function sort_menu(stop_point)
-
-	local done=false
-
-	if stop_point>2 then
-		while not done do
-			done = true
-			for i=1,stop_point-2 do
-				if GearRackUI.BaggedItems[i].name > GearRackUI.BaggedItems[i+1].name then
-					copy_baggeditems(i,stop_point)
-					copy_baggeditems(i+1,i)
-					copy_baggeditems(stop_point,i+1)
-
-					done = false
-				end
-			end
+-- Sorts the first `count` flyout entries by name. The entries are reused
+-- tables, so moving them creates nothing.
+local function sort_menu(count)
+	local items = GearRackUI.BaggedItems
+	for i=2,count do
+		local item, j = items[i], i-1
+		while j>=1 and items[j].name>item.name do
+			items[j+1] = items[j]
+			j = j-1
 		end
+		items[j+1] = item
 	end
-
 end
 
 function GearRackUI_CurrentSet()
@@ -723,7 +705,7 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 					for slot=1,GetContainerNumSlots(bag) do include(bag,slot) end
 				end
 			end
-			sort_menu(idx)
+			sort_menu(idx-1)
 
 			if GearRackDB.settings.ShowEmpty=="ON" and GetInventoryItemLink("player",invslot) and (relativeTo=="CHARACTERSHEET" or not (GearRackDB.settings.RightClick=="ON" and (invslot==13 or invslot==14))) then
 				-- add an empty slot to the menu
@@ -743,7 +725,7 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 				idx = idx + 1
 			end
 		end
-		sort_menu(idx)
+		sort_menu(idx-1)
 	end
 
 	GearRackUI.NumberOfItems = idx-1
@@ -769,9 +751,9 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 
 	for i=1,#GearRackDB.bars[user].Bar do
 		if invslot~=GearRackDB.bars[user].Bar[i] then
-			_G["GearRackUIInv"..GearRackDB.bars[user].Bar[i]]:UnlockHighlight()
+			barButton[GearRackDB.bars[user].Bar[i]]:UnlockHighlight()
 		else
-			_G["GearRackUIInv"..GearRackDB.bars[user].Bar[i]]:LockHighlight()
+			barButton[GearRackDB.bars[user].Bar[i]]:LockHighlight()
 		end
 	end
 
@@ -790,16 +772,16 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 	end
 
 	for i=1,GearRackUI.NumberOfItems do
-		local item = _G["GearRackUIMenu"..i]
+		local item = menuButton[i]
 		if not item then
 			item = CreateFrame("CheckButton", "GearRackUIMenu"..i, GearRackUI_MenuFrame, "GearRackUIMenuTemplate")
 			item:SetID(i)
-			_G["GearRackUIMenu"..i.."Border"]:SetVertexColor(.15,.25,1,1)
-			_G["GearRackUIMenu"..i.."Border"]:Hide()
+			menuBorder[i]:SetVertexColor(.15,.25,1,1)
+			menuBorder[i]:Hide()
 			GearRack.AddSetMacroHandle(item)
 			GearRackUI.MaxItems = GearRackUI.MaxItems + 1
 		end
-		local icon = _G["GearRackUIMenu"..i.."Icon"]
+		local icon = menuIcon[i]
 		item:SetPoint("TOPLEFT","GearRackUI_MenuFrame",GearRackUI.MenuDock,xpos,ypos)
 		icon:SetTexture(GearRackUI.BaggedItems[i].texture)
 		-- grey menu item if it's on the ignore list (ALT key is down if it made it to BaggedItems)
@@ -832,7 +814,7 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 		end
 	end
 	for i=(GearRackUI.NumberOfItems+1),GearRackUI.MaxItems do
-		local mBtn = _G["GearRackUIMenu"..i]
+		local mBtn = menuButton[i]
 		if mBtn then
 			mBtn:Hide()
 			if mBtn.enchantOverlay then
@@ -856,9 +838,9 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 	if invslot==0 then -- if this is an ammo slot, show counts
 		for i=1,GearRackUI.NumberOfItems do
 			if GearRackUI.AmmoCounts[GearRackUI.BaggedItems[i].name] then
-				_G["GearRackUIMenu"..i.."Count"]:SetText(GearRackUI.AmmoCounts[GearRackUI.BaggedItems[i].name])
+				menuCount[i]:SetText(GearRackUI.AmmoCounts[GearRackUI.BaggedItems[i].name])
 			end
-			local menuBtn = _G["GearRackUIMenu"..i]
+			local menuBtn = menuButton[i]
 			GearRack.SetQualityBorder(menuBtn, GearRackUI.BaggedItems[i].quality, 16)
 			if menuBtn.enchantOverlay then
 				menuBtn.enchantOverlay:Hide()
@@ -868,27 +850,27 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 		for i=1,GearRackUI.NumberOfItems do
 			name = GearRackUI.BaggedItems[i].name
 			if GearRackUI.BankIsOpen and GearRackEngine.SetHasBanked(name) then
-				_G["GearRackUIMenu"..i.."Border"]:Show()
-				_G["GearRackUIMenu"..i.."Icon"]:SetVertexColor(.5,.5,.5)
+				menuBorder[i]:Show()
+				menuIcon[i]:SetVertexColor(.5,.5,.5)
 			else
-				_G["GearRackUIMenu"..i.."Border"]:Hide()
-				_G["GearRackUIMenu"..i.."Icon"]:SetVertexColor(1,1,1)
+				menuBorder[i]:Hide()
+				menuIcon[i]:SetVertexColor(1,1,1)
 			end
 			-- Set icons carry no item quality or enchant.
-			local menuBtn = _G["GearRackUIMenu"..i]
+			local menuBtn = menuButton[i]
 			GearRack.SetQualityBorder(menuBtn, nil)
 			if menuBtn.enchantOverlay then
 				menuBtn.enchantOverlay:Hide()
 			end
 
-			item = _G["GearRackUIMenu"..i.."Name"]
+			item = menuName[i]
 			if GearRackDB.settings.SetLabels=="ON" then
 				item:SetText(name)
 				item:Show()
 			else
 				item:Hide()
 			end
-			item = _G["GearRackUIMenu"..i.."HotKey"]
+			item = menuHotKey[i]
 			if GearRackDB.sets[user].Sets[name].key and GearRackDB.settings.Bindings=="ON" then
 				local _,_,j,k = string.find(GearRackDB.sets[user].Sets[name].key or "","(.).+(-.)")
 				item:SetText((j or "")..(k or ""))
@@ -899,21 +881,21 @@ function GearRackUI_BuildMenu(invslot,relativeTo)
 		end
 	else -- normal slot (1-19)
 		for i=1,GearRackUI.NumberOfItems do
-			_G["GearRackUIMenu"..i.."Name"]:SetText("")
-			_G["GearRackUIMenu"..i.."Count"]:SetText("")
-			_G["GearRackUIMenu"..i.."HotKey"]:SetText("")
+			menuName[i]:SetText("")
+			menuCount[i]:SetText("")
+			menuHotKey[i]:SetText("")
 
 			local itemBag = GearRackUI.BaggedItems[i].bag
 			if itemBag and (itemBag == -1 or (itemBag >= 5 and itemBag <= 10)) then
-				_G["GearRackUIMenu"..i.."Border"]:Show()
-				_G["GearRackUIMenu"..i.."Icon"]:SetVertexColor(.5,.5,.5)
+				menuBorder[i]:Show()
+				menuIcon[i]:SetVertexColor(.5,.5,.5)
 			else
-				_G["GearRackUIMenu"..i.."Border"]:Hide()
-				_G["GearRackUIMenu"..i.."Icon"]:SetVertexColor(1,1,1)
+				menuBorder[i]:Hide()
+				menuIcon[i]:SetVertexColor(1,1,1)
 			end
 
 			-- quality border & weapon enchant overlay
-			local menuBtn = _G["GearRackUIMenu"..i]
+			local menuBtn = menuButton[i]
 			GearRack.SetQualityBorder(menuBtn, GearRackUI.BaggedItems[i].quality, 16)
 			if invslot == 16 or invslot == 17 then
 				update_menu_weapon_enchant(menuBtn, GearRackUI.BaggedItems[i])
@@ -973,7 +955,7 @@ local function draw_inv()
 	end
 
 	for i=0,20 do
-		local slotBtn = _G["GearRackUIInv"..i]
+		local slotBtn = barButton[i]
 		if slotBtn then
 			slotBtn:Hide()
 			if slotBtn.enchantOverlay then
@@ -984,10 +966,10 @@ local function draw_inv()
 	GearRackUI.TrinketsPaired = false -- changes to true if two trinkets are beside each other
 
 	if #bar>0 then
-		item = _G["GearRackUIInv"..bar[1]]
+		item = barButton[bar[1]]
 		item:ClearAllPoints()
 		item:SetPoint(cornerStart,"GearRackUI_InvFrame",cornerStart,xdirStart,ydirStart)
-		_G["GearRackUIInv"..bar[1].."Icon"]:SetTexture(get_item_info(bar[1]))
+		barIcon[bar[1]]:SetTexture(get_item_info(bar[1]))
 		apply_inv_quality_border(item, bar[1])
 		update_equipped_enchant(bar[1], item)
 		item:Show()
@@ -1004,10 +986,10 @@ local function draw_inv()
 				xspacer = xdir*2
 				yspacer = ydir*2
 			end
-			item = _G["GearRackUIInv"..bar[i]]
+			item = barButton[bar[i]]
 			item:ClearAllPoints()
 			item:SetPoint(cornerTo,"GearRackUIInv"..bar[i-1],corner,xdir+xspacer,ydir+yspacer)
-			_G["GearRackUIInv"..bar[i].."Icon"]:SetTexture(get_item_info(bar[i]))
+			barIcon[bar[i]]:SetTexture(get_item_info(bar[i]))
 			apply_inv_quality_border(item, bar[i])
 			update_equipped_enchant(bar[i], item)
 			item:Show()
@@ -1089,9 +1071,9 @@ local function update_keybindings()
 			if not text and (i==13 or i==14) then
 				text = GetBindingKey(i==13 and "GEARRACK_USE_TOP_TRINKET_ITEM" or "GEARRACK_USE_BOTTOM_TRINKET_ITEM")
 			end
-			_G["GearRackUIInv"..i.."HotKey"]:SetText(text and GetBindingText(text,"KEY_",1) or "")
+			barHotKey[i]:SetText(text and GetBindingText(text,"KEY_",1) or "")
 		else
-			_G["GearRackUIInv"..i.."HotKey"]:SetText("")
+			barHotKey[i]:SetText("")
 		end
 	end
 
@@ -1379,6 +1361,7 @@ function GearRackUI_SlashHandler(input)
 		else
 			GearRackUI.FrameToScale = GearRackUI_InvFrame
 			GearRackUI_ScaleFrame(argument)
+			GearRackUI.FrameToScale = nil
 			GearRackDB.bars[user].MainScale = GearRackUI_InvFrame:GetScale()
 			cooldowns_need_updating()
 		end
@@ -1421,7 +1404,7 @@ function GearRackUI_Reset()
 end
 
 local function remove_inv(id)
-	_G["GearRackUIInv"..id]:Hide()
+	barButton[id]:Hide()
 	GearRackDB.bars[user].Inv[id] = nil
 	for i=1,#GearRackDB.bars[user].Bar do
 		if GearRackDB.bars[user].Bar[i]==id then
@@ -1463,7 +1446,7 @@ function slot_click(button, ignoreShift)
 		else
 			GearRackDB.bars[user].Visible="ON"
 			GearRackDB.bars[user].Inv[id] = 1
-			_G["GearRackUIInv"..id.."Icon"]:SetTexture(texture)
+			barIcon[id]:SetTexture(texture)
 			table.insert(GearRackDB.bars[user].Bar,id)
 			draw_inv()
 		end
@@ -1585,15 +1568,15 @@ function GearRackUI_InvUpdate_OnUpdate()
 
 		if #GearRackDB.bars[user].Bar>0 then
 			for i=1,#GearRackDB.bars[user].Bar do
-				_G["GearRackUIInv"..GearRackDB.bars[user].Bar[i]]:SetChecked(0)
-				SetDesaturation(_G["GearRackUIInv"..GearRackDB.bars[user].Bar[i].."Icon"],nil)
+				barButton[GearRackDB.bars[user].Bar[i]]:SetChecked(0)
+				SetDesaturation(barIcon[GearRackDB.bars[user].Bar[i]],nil)
 			end
 		end
 
 		-- if set builder is up, change the inventory to reflect the change
 		if GearRackUI_SetsFrame:IsVisible() then
 			for i=0,19 do
-				SetDesaturation(_G["GearRackUI_Sets_Inv"..i.."Icon"],nil)
+				SetDesaturation(setsInvIcon[i],nil)
 			end
 			GearRackUI_Sets_UpdateInventory()
 			validate_set_buttons()
@@ -1683,7 +1666,7 @@ function GearRackUI_ReactUseInventoryItem(slot)
 		observed.id,observed.time=itemID,time
 	end
 	if GearRackDB.bars[user].Inv[slot] then
-		_G["GearRackUIInv"..slot]:SetChecked(1)
+		barButton[slot]:SetChecked(1)
 	end
 	if GearRack.initialized and (slot==13 or slot==14) then GearRackTrinkets.ReflectTrinketUse(slot) end
 	GearRackEngine.StartTimer("InvUpdate",1.5) -- extra long wait
@@ -2295,13 +2278,13 @@ end
 local function highlight_set_item(v1)
 
 	if GearRackUI.SetBuild[v1]==1 then
-		_G["GearRackUI_Sets_Inv"..v1.."Icon"]:SetVertexColor(1,1,1,1)
-		_G["GearRackUI_Sets_Inv"..v1]:SetAlpha(1)
-		_G["GearRackUI_Sets_Inv"..v1]:LockHighlight()
+		setsInvIcon[v1]:SetVertexColor(1,1,1,1)
+		setsInv[v1]:SetAlpha(1)
+		setsInv[v1]:LockHighlight()
 	else
-		_G["GearRackUI_Sets_Inv"..v1.."Icon"]:SetVertexColor(.4,.4,.4,1)
-		_G["GearRackUI_Sets_Inv"..v1]:SetAlpha(.5)
-		_G["GearRackUI_Sets_Inv"..v1]:UnlockHighlight()
+		setsInvIcon[v1]:SetVertexColor(.4,.4,.4,1)
+		setsInv[v1]:SetAlpha(.5)
+		setsInv[v1]:UnlockHighlight()
 	end
 end
 
@@ -2318,8 +2301,8 @@ function GearRackUI_Sets_UpdateInventory()
 		if not texture then
 			_,texture = GetInventorySlotInfo(GearRackUI.Indexes[i].slotName)
 		end
-		local btn = _G["GearRackUI_Sets_Inv"..i]
-		_G["GearRackUI_Sets_Inv"..i.."Icon"]:SetTexture(texture)
+		local btn = setsInv[i]
+		setsInvIcon[i]:SetTexture(texture)
 		apply_inv_quality_border(btn, i)
 		GearRackUI.SetIcons[i+1] = texture
 		highlight_set_item(i)
@@ -2421,7 +2404,7 @@ function GearRackUI_Sets_InvToggle()
 		elseif not GearRackDB.bars[user].Inv[id] and GearRackUI.SetBuild[id]==1 then
 			GearRackDB.bars[user].Visible="ON"
 			GearRackDB.bars[user].Inv[id] = 1
-			_G["GearRackUIInv"..id.."Icon"]:SetTexture(get_item_info(id))
+			barIcon[id]:SetTexture(get_item_info(id))
 			table.insert(GearRackDB.bars[user].Bar,id)
 			draw_inv()
 		end
@@ -3362,7 +3345,6 @@ function GearRackUI.CancelEvent(eventname)
 		GearRackUI.EventTimers[eventname]:Cancel()
 		GearRackUI.EventTimers[eventname] = nil
 	end
-	GearRackUI.EventQueue[eventname] = nil
 	GearRackUI.EventQueueArg1[eventname] = nil
 	GearRackUI.EventQueueArg2[eventname] = nil
 	GearRackUI.EventQueueSetName[eventname] = nil
@@ -3463,7 +3445,7 @@ function GearRackUI_DisableAllEvents()
 	GearRackUI.EventsSuspended = true
 	GearRackUI_RegisterFrame:UnregisterAllEvents()
 	table.wipe(GearRackUI.Register)
-	for eventname in pairs(GearRackUI.EventQueue) do GearRackUI.CancelEvent(eventname) end
+	for eventname in pairs(GearRackUI.EventTimers) do GearRackUI.CancelEvent(eventname) end
 	table.wipe(GearRackUI.EventQueueArg1)
 	table.wipe(GearRackUI.EventQueueArg2)
 	table.wipe(GearRackUI.EventQueueSetName)
@@ -3473,8 +3455,7 @@ end
 
 --[[ Event Processing ]]--
 
-GearRackUI.EventQueue = {} -- deadlines for delayed scripts; never persisted
-GearRackUI.EventTimers = {} -- cancellable ClassicAPI handles
+GearRackUI.EventTimers = {} -- [eventname] = the cancellable handle of a delayed script
 
 -- Retain only the event payload and association used by the script dispatcher.
 GearRackUI.EventQueueArg1 = {} -- indexed by events also, values of arg1
@@ -3553,7 +3534,6 @@ function GearRackUI_RegisterFrame_OnEvent(ev, a1, a2)
 				run_event_script(i,a1,a2)
 			elseif event_is_enabled(i) then
 				GearRackUI.CancelEvent(i)
-				GearRackUI.EventQueue[i] = GetTime()+GearRackDB.events[i].delay
 				GearRackUI.EventQueueArg1[i] = a1
 				GearRackUI.EventQueueArg2[i] = a2
 				GearRackUI.EventQueueSetName[i] = GearRackDB.bars[user].Events[i].setname
@@ -5047,7 +5027,7 @@ function GearRackEngine.MenuFrame()
 	local dock,slot=GearRackUI.MenuDockedTo,GearRackUI.InvOpen
 	local owner=GearRackUI_InvFrame
 	if dock=="SET" then
-		owner=slot and _G["GearRackUI_Sets_Inv"..slot]
+		owner=slot and setsInv[slot]
 		if not GearRackUI_SetsFrame:IsVisible() or not owner or owner:GetAlpha()<=.5 then
 			GearRackUI_MenuFrame:Hide();return
 		end
