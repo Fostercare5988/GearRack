@@ -9,6 +9,7 @@ src\ForgeUI.lua
 src\Core.lua
 src\Constants.lua
 src\Events.lua
+src\Engine.lua
 src\Equipment.lua
 src\PoisonSwap.lua
 src\Equipment.xml
