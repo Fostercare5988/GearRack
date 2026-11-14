@@ -20,8 +20,8 @@ GearRack prints a message in chat if one is missing.
 
 ## Install
 
-1. With WoW closed, click **Code → Download ZIP** on this page.
-2. Extract it into `Interface/AddOns` and rename the folder to **GearRack**, so that
+1. With WoW closed, download `GearRack.zip` from the [latest release](https://github.com/Fostercare5988/GearRack/releases/latest).
+2. Extract it into `Interface/AddOns`, so that
    `Interface/AddOns/GearRack/GearRack.toc` exists.
 3. Enable **GearRack** in the character-screen addon list.
 
