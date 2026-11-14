@@ -2270,13 +2270,16 @@ function GearRackUI_Sets_Initialize()
 		table.insert(GearRackUI.SetIcons,"")
 	end
 
-	for i=1,#GearRackUIExtraIcons do
-		-- add ExtraIcons defined in GearRackUIExtraIcons.lua
-		table.insert(GearRackUI.SetIcons,GearRackUIExtraIcons[i])
-	end
-	for i=1,GetNumMacroIcons() do
-		-- add the macro icons to choose from
-		table.insert(GearRackUI.SetIcons,GetMacroIconInfo(i))
+	-- Spell and item icons, as ClassicAPI lists them for macros (API.md,
+	-- GetMacroIcons): the stock GetMacroIconInfo list has no item icons. The
+	-- loose ones are those dropped into Interface\Icons.
+	local names = {}
+	GetLooseMacroIcons(names)
+	GetLooseMacroItemIcons(names)
+	GetMacroIcons(names)
+	GetMacroItemIcons(names)
+	for i=1,#names do
+		table.insert(GearRackUI.SetIcons,"Interface\\Icons\\"..names[i])
 	end
 
 end
@@ -2441,7 +2444,8 @@ function GearRackUI_Sets_ScrollFrame_Update()
 		else
 			item:Hide()
 		end
-		if GearRackUI.SetIcons[idx]==GearRackUI.SelectedIcon then
+		local icon = GearRackUI.SetIcons[idx]
+		if icon and GearRackUI.SelectedIcon and string.upper(icon)==string.upper(GearRackUI.SelectedIcon) then
 			item:LockHighlight()
 		else
 			item:UnlockHighlight()

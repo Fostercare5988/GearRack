@@ -152,27 +152,6 @@ GearRackUIText.HELP = "GEAR SETS\nSave chosen slots in Sets. Bind a key there or
 
 
 
---[[ Extra Icons
-
-	Here you can add more icons available for use in the set builder.
-	There are two ways to add an icon:
-
-	1. Draw your own 64x64 uncompressed 32-bit TGA file and put it into Interface\Icons
-
-	2. Use a "built-in" icon by adding its exact path/name to the list below.
-
-	The icons below will list immediately after the icons for the worn gear in the order
-	they are listed here.  If you draw your own icon and put it into Interface\Icons,
-	you do not need to list it here.  They will be picked up automatically.
-
-]]
-
-GearRackUIExtraIcons = {
-	"Interface\\Icons\\INV_Banner_02",
-	"Interface\\Icons\\INV_Banner_03",
-	-- add new icons here in this format: "Interface\\Icons\\(ExactIconName)",
-}
-
 BINDING_NAME_GEARRACK_TOGGLE_BAR = "Toggle equipment bar"
 
 BINDING_NAME_GEARRACK_TOGGLE_EVENTS = "Toggle Events"
