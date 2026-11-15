@@ -175,7 +175,7 @@ GearRackUI_DefaultEvents = {
         "end",
 	},
 	["Mount(Not ZG/AQ)"] = {
-	["trigger"] = "PLAYER_AURAS_CHANGED",
+	["trigger"] = "PLAYER_MOUNT_DISPLAY_CHANGED",
 	["delay"] = 0,
 	["script"] =
 		"local mount = IsMounted()\n"..
