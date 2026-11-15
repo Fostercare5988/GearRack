@@ -624,7 +624,7 @@ end
 
 function GearRackTrinkets.WornTrinketTooltip()
 	local id = this:GetID()
-	if GearRackTrinkets.IsTimerActive("Scaling") or GearRackDB.settings.ShowTooltips=="OFF" then
+	if GearRackTrinkets.IsTimerActive("Scaling") then
 		return
 	end
 	GearRackTrinkets.TooltipOwner = this
@@ -637,7 +637,7 @@ end
 
 function GearRackTrinkets.MenuTrinketTooltip()
 	local id = this:GetID()
-	if GearRackTrinkets.IsTimerActive("Scaling") or GearRackDB.settings.ShowTooltips=="OFF" then
+	if GearRackTrinkets.IsTimerActive("Scaling") then
 		return
 	end
 	GearRackTrinkets.TooltipOwner = this
@@ -667,16 +667,7 @@ local function clear_view_tooltip(frame)
 end
 
 function GearRackTrinkets.AnchorTooltip(owner)
-	owner = owner or this
-	if GearRackDB.settings.TooltipFollow=="ON" then
-		if owner.GetLeft and owner:GetLeft() and owner:GetLeft()<400 then
-			GameTooltip:SetOwner(owner,"ANCHOR_RIGHT")
-		else
-			GameTooltip:SetOwner(owner,"ANCHOR_LEFT")
-		end
-	else
-		GameTooltip_SetDefaultAnchor(GameTooltip,owner)
-	end
+	GearRack.AnchorTooltip(owner or this)
 end
 
 -- updates the tooltip created in the functions above
@@ -715,23 +706,21 @@ end
 
 -- normal tooltip for options
 function GearRackTrinkets.OnTooltip(line1,line2)
-	if GearRackDB.settings.ShowTooltips=="ON" then
-		GearRackTrinkets.AnchorTooltip()
-		if line1 then
-			GameTooltip:AddLine(line1)
-			GameTooltip:AddLine(line2,.8,.8,.8,1)
-			GameTooltip:Show()
-		else
-			local name = this:GetName() or ""
-			for i=1,#GearRackTrinkets.CheckOptInfo do
-				if name=="GearRackTrinkets_Opt"..GearRackTrinkets.CheckOptInfo[i][1] then
-					GearRackTrinkets.OnTooltip(GearRackTrinkets.CheckOptInfo[i][3],GearRackTrinkets.CheckOptInfo[i][4])
-				end
+	GearRackTrinkets.AnchorTooltip()
+	if line1 then
+		GameTooltip:AddLine(line1)
+		GameTooltip:AddLine(line2,.8,.8,.8,1)
+		GameTooltip:Show()
+	else
+		local name = this:GetName() or ""
+		for i=1,#GearRackTrinkets.CheckOptInfo do
+			if name=="GearRackTrinkets_Opt"..GearRackTrinkets.CheckOptInfo[i][1] then
+				GearRackTrinkets.OnTooltip(GearRackTrinkets.CheckOptInfo[i][3],GearRackTrinkets.CheckOptInfo[i][4])
 			end
-			for i=1,#GearRackTrinkets.TooltipInfo do
-				if GearRackTrinkets.TooltipInfo[i][1]==name and GearRackTrinkets.TooltipInfo[i][2] then
-					GearRackTrinkets.OnTooltip(GearRackTrinkets.TooltipInfo[i][2],GearRackTrinkets.TooltipInfo[i][3])
-				end
+		end
+		for i=1,#GearRackTrinkets.TooltipInfo do
+			if GearRackTrinkets.TooltipInfo[i][1]==name and GearRackTrinkets.TooltipInfo[i][2] then
+				GearRackTrinkets.OnTooltip(GearRackTrinkets.TooltipInfo[i][2],GearRackTrinkets.TooltipInfo[i][3])
 			end
 		end
 	end

@@ -6,7 +6,7 @@ Hover an equipment button to choose a carried item. Alt-click character-sheet sl
 
 Open **Gear sets → Bar layout** to reorder buttons with **Up** and **Down**. The order follows the bar's growth direction, including vertical and reversed bars. **Show gear-set button on the bar** hides or restores Sets at its chosen position. Reordering keeps the bar's position, scale and spacing.
 
-**Equipment options** controls orientation, growth, flyouts, key labels and tooltips. Equipment buttons always have rarity borders and large centered gold cooldown numbers. Weapon-enchant labels show the remaining time and warn about low poison charges.
+**Equipment options** controls orientation, growth, flyouts, key labels and where tooltips show. Equipment buttons always have rarity borders and large centered gold cooldown numbers. Weapon-enchant labels show the remaining time and warn about low poison charges.
 
 `/gr bar` shows or hides the bar. `/gr lock`, `/gr unlock` and `/gr scale .85` adjust it. **Reset Bar** restores its position and scale while keeping sets and enabled buttons.
 

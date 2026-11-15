@@ -75,6 +75,15 @@ function GearRack.SetQualityBorder(button,quality,edgeSize)
     border:Show()
 end
 
+-- A GearRack tooltip beside its button (Tooltips beside item), or in the game's spot.
+function GearRack.AnchorTooltip(owner)
+    if GearRackDB.settings.TooltipFollow=="ON" then
+        GameTooltip:SetOwner(owner,(owner:GetLeft() or 0)<400 and "ANCHOR_RIGHT" or "ANCHOR_LEFT")
+    else
+        GameTooltip_SetDefaultAnchor(GameTooltip,owner)
+    end
+end
+
 -- One alert for every ready item: sound, screen and chat.
 function GearRack.Alert(text)
     PlaySound("GnomeExploration")

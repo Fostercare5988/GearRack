@@ -12,7 +12,7 @@ Selecting the same pending trinket again cancels it. A different choice replaces
 
 Open **Key Bindings → GearRack** and assign **Use Trinket 1 (Upper slot)** and **Use Trinket 2 (Lower slot)**. The keys use the currently equipped item after swaps.
 
-**Show key labels** changes the displayed keys without changing assignments. **Show trinket bar** controls the equipped buttons. Cooldown numbers disappear when an item is ready. Tooltips, Shift-only lists and ready alerts follow the same options in Gear sets.
+**Show key labels** changes the displayed keys without changing assignments. **Show trinket bar** controls the equipped buttons. Cooldown numbers disappear when an item is ready. Tooltip placement, Shift-only lists and ready alerts follow the same options in Gear sets.
 
 While unlocked, drag, resize or rotate the windows using their controls. Hiding or locking a window stops its movement and resizing. Options also include docking and list columns.
 

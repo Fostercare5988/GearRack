@@ -13,7 +13,6 @@ GearRackUI.DefaultSettings = {			-- These settings are for all users:
 	ShowEmpty = "ON",			-- whether to show empty slot in the menu
 	FlipMenu = "OFF",			-- whether to display menu on the opposite side
 	RightClick = "ON",			-- whether right click sends to second slot
-	ShowTooltips = "ON",		-- whether to display tooltip at all
 	RotateMenu = "OFF",			-- whether menu is rotated (temporary setting)
 	ShowIcon = "ON",			-- whether to show the minimap button
 	DisableToggle = "ON",		-- Shift-click opens sets (OFF toggles the equipment bar)
@@ -266,7 +265,6 @@ GearRackUI.OptInfo = {
 	["GearRackUI_Opt_ShowEmpty"] = { text=GearRackUIText.OPT_SHOWEMPTY_TEXT, tooltip=GearRackUIText.OPT_SHOWEMPTY_TOOLTIP, type="Check", info="ShowEmpty" },
 	["GearRackUI_Opt_FlipMenu"] = { text=GearRackUIText.OPT_FLIPMENU_TEXT, tooltip=GearRackUIText.OPT_FLIPMENU_TOOLTIP, type="Check", info="FlipMenu" },
 	["GearRackUI_Opt_RightClick"] = { text=GearRackUIText.OPT_RIGHTCLICK_TEXT, tooltip=GearRackUIText.OPT_RIGHTCLICK_TOOLTIP, type="Check", info="RightClick" },
-	["GearRackUI_Opt_ShowTooltips"] = { text=GearRackUIText.OPT_SHOWTOOLTIPS_TEXT, tooltip=GearRackUIText.OPT_SHOWTOOLTIPS_TOOLTIP, type="Check", info="ShowTooltips" },
 	["GearRackUI_Opt_Notify"] = { text=GearRackUIText.OPT_NOTIFY_TEXT, tooltip=GearRackUIText.OPT_NOTIFY_TOOLTIP, type="Check", info="Notify" },
 	["GearRackUI_Opt_RotateMenu"] = { text=GearRackUIText.OPT_ROTATEMENU_TEXT, tooltip=GearRackUIText.OPT_ROTATEMENU_TOOLTIP, type="Check", info="RotateMenu" },
 	["GearRackUI_Sets_Close"] = { text=GearRackUIText.SETS_CLOSE_TEXT, tooltip=GearRackUIText.SETS_CLOSE_TOOLTIP },
@@ -324,8 +322,7 @@ GearRackUI.OptScroll = {
 	{ idx="GearRackUI_Opt_FlipMenu" },
 	{ idx="GearRackUI_Opt_RotateMenu" },
 	{ idx="GearRackUI_Opt_FlipBar" },
-	{ idx="GearRackUI_Opt_ShowTooltips" },
-	{ idx="GearRackUI_Opt_TooltipFollow", dependency="GearRackUI_Opt_ShowTooltips" }
+	{ idx="GearRackUI_Opt_TooltipFollow" }
 }
 
 -- paperdoll_slot=frame name of the slot on the paperdoll frame (for alt+click purposes)
@@ -1924,14 +1921,8 @@ local function set_tooltip_anchor(owner)
 	if GearRackUI.MenuDockedTo=="CHARACTERSHEET" and GearRackUI.InvOpen then
 		-- if this is a tooltip of an item docked to character sheet, anchor it to the paperdoll_slot
 		GameTooltip:SetOwner(owner,"ANCHOR_RIGHT")
-	elseif GearRackDB.settings.TooltipFollow=="ON" then
-		if (owner:GetLeft() or 0)<400 then
-			GameTooltip:SetOwner(owner,"ANCHOR_RIGHT")
-		else
-			GameTooltip:SetOwner(owner,"ANCHOR_LEFT")
-		end
 	else
-		GameTooltip_SetDefaultAnchor(GameTooltip,owner)
+		GearRack.AnchorTooltip(owner)
 	end
 end
 
@@ -1939,7 +1930,7 @@ function GearRackUI_Inv_Tooltip()
 
 	local id = this:GetID()
 
-	if GearRackEngine.TimerEnabled("ScaleUpdate") or GearRackDB.settings.ShowTooltips=="OFF" then
+	if GearRackEngine.TimerEnabled("ScaleUpdate") then
 		return
 	end
 	GearRackUI_StopTooltip(false)
@@ -1974,7 +1965,7 @@ function GearRackUI_Menu_Tooltip()
 
 	local id = this:GetID()
 
-	if GearRackEngine.TimerEnabled("ScaleUpdate") or GearRackDB.settings.ShowTooltips=="OFF" then
+	if GearRackEngine.TimerEnabled("ScaleUpdate") then
 		return
 	end
 	GearRackUI_StopTooltip(false)
@@ -2060,13 +2051,10 @@ end
 --[[ Options ]]--
 
 function GearRackUI_OnTooltip(v1,v2)
-
-	if GearRackDB.settings.ShowTooltips=="ON" then
-		set_tooltip_anchor(this)
-		GameTooltip:AddLine(v1)
-		GameTooltip:AddLine(v2,.8,.8,.8,1)
-		GameTooltip:Show()
-	end
+	set_tooltip_anchor(this)
+	GameTooltip:AddLine(v1)
+	GameTooltip:AddLine(v2,.8,.8,.8,1)
+	GameTooltip:Show()
 end
 
 function GearRackUI_Opt_OnEnter()
@@ -3595,7 +3583,7 @@ end
 function GearRackUI_EventsList_OnEnter()
 	local idx,notes = this:GetID() + FauxScrollFrame_GetOffset(GearRackUI_Events_ScrollFrame)
 
-	if eventList[idx].name and GearRackDB.settings.ShowTooltips=="ON" then
+	if eventList[idx].name then
 		set_tooltip_anchor(this)
 		GameTooltip:AddLine(eventList[idx].name)
 		if eventList[idx].setname then
@@ -3678,8 +3666,7 @@ end
 -- Keeps an item tooltip current while its cooldown runs.
 function GearRackUI.TooltipUpdate()
 	local owner = GearRackUI.TooltipOwner
-	if not owner or not owner:IsVisible() or GameTooltip:GetOwner()~=owner or
-		GearRackDB.settings.ShowTooltips=="OFF" or not GearRackUI.TooltipType or
+	if not owner or not owner:IsVisible() or GameTooltip:GetOwner()~=owner or not GearRackUI.TooltipType or
 		(not GearRackUI.TooltipPending and not GameTooltip:IsVisible()) then
 		GearRackUI_StopTooltip(true);return
 	end
