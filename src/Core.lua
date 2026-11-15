@@ -124,6 +124,24 @@ function GearRack.ScaleFrame(frame,scale,x,y)
     return left,top
 end
 
+-- The keys a saved table owns: names, and the keys of default tables.
+local function owned(...)
+    local keys={}
+    for i=1,select("#",...) do
+        local entry=select(i,...)
+        if type(entry)=="table" then for key in pairs(entry) do keys[key]=true end else keys[entry]=true end
+    end
+    return keys
+end
+
+-- Each saved table keeps what something owns; one sweep clears the rest, so a
+-- retired setting goes with no line of its own (KNOWN_PATTERNS KP-64).
+local function sweep(saved,keys)
+    for key in pairs(saved) do
+        if not keys[key] then saved[key]=nil end
+    end
+end
+
 -- Called at login, after the client has restored both SavedVariables roots.
 function GearRack.NormalizeSavedData()
     GearRackDB=type(GearRackDB)=="table" and GearRackDB or {}
@@ -135,34 +153,31 @@ function GearRack.NormalizeSavedData()
     for key,value in pairs(GearRackUI.DefaultSettings) do
         if GearRackDB.settings[key]==nil then GearRackDB.settings[key]=value end
     end
-    -- Retired: the trinket window uses the shared tooltip, list and alert settings;
-    -- GearRack always draws cooldown numbers, rarity borders and full tooltips.
-    for _,key in ipairs({"TooltipFollow","ShowTooltips","MenuOnShift","Notify","NotifyThirty","NotifyChatAlso",
-        "HideOnLoad","CooldownCount","LargeCooldown","TinyTooltips"}) do
-        GearRackDB.trinketOptions[key]=nil
-    end
-    for _,key in ipairs({"BigCooldown","CooldownNumbers","QualityBorders","TinyTooltip","Minimap"}) do
-        GearRackDB.settings[key]=nil
-    end
-    -- The combat queue lives in memory only; older versions saved it with the sets.
+    sweep(GearRackDB,owned("bars","settings","events","sets","trinketOptions","eventsInitialized"))
+    sweep(GearRackDB.settings,owned(GearRackUI.DefaultSettings,"IconPos","TrinketIconPos"))
+    sweep(GearRackDB.trinketOptions,owned(GearRackTrinkets.Defaults))
+    sweep(GearRackCharDB,owned("trinkets","queues","ItemsUsed","KeepManualTrinkets","HeldQueues"))
+    if type(GearRackCharDB.trinkets)=="table" then sweep(GearRackCharDB.trinkets,owned(GearRackTrinkets.DisplayDefaults)) end
+    -- The engine's own sets (the combat queue, restores) live in memory only;
+    -- older versions saved them with the player's sets.
     for _,character in pairs(GearRackDB.sets) do
-        if type(character)=="table" and type(character.Sets)=="table" then character.Sets["GearRackEngine-CombatQueue"]=nil end
+        if type(character)=="table" and type(character.Sets)=="table" then
+            for name in pairs(character.Sets) do
+                if string.find(name,"^GearRackEngine%-") then character.Sets[name]=nil end
+            end
+        end
     end
-    -- Ready watches: one table for every used item (trinkets kept theirs apart before).
+    -- Ready watches: 0 while the item waits for its cooldown, 30 with both looks
+    -- ahead, 5 with only the ready look left.
     local used=GearRackCharDB.ItemsUsed
-    if type(used)~="table" then used=type(GearRackCharDB.trinkets)=="table" and GearRackCharDB.trinkets.ItemsUsed end
     GearRackCharDB.ItemsUsed={}
     if type(used)=="table" then
         for itemID,state in pairs(used) do
-            if type(itemID)=="number" and (state==30 or state==5) then GearRackCharDB.ItemsUsed[itemID]=state
-            elseif type(itemID)=="number" and type(state)=="number" and state>=0 and state<=3 then GearRackCharDB.ItemsUsed[itemID]=0 end
+            if type(itemID)=="number" and (state==0 or state==30 or state==5) then GearRackCharDB.ItemsUsed[itemID]=state end
         end
     end
-    if type(GearRackCharDB.trinkets)=="table" then GearRackCharDB.trinkets.ItemsUsed=nil end
     if type(GearRackCharDB.KeepManualTrinkets)~="boolean" then GearRackCharDB.KeepManualTrinkets=true end
     if type(GearRackCharDB.HeldQueues)~="table" then GearRackCharDB.HeldQueues={} end
-    GearRackDB.schema=1
-    GearRackCharDB.schema=1
 end
 
 -- Narrow public queries used by companion addons. They never perform swaps.
@@ -249,24 +264,30 @@ function GearRack.RefreshInventory()
     end
 end
 
--- Broad inventory notifications include instance-state changes. Compare identity
--- before invalidating carried locations; equal item IDs can be different copies.
+-- What each slot wears: its item ID and copy (GUID). ClassicAPI's
+-- PLAYER_EQUIPMENT_CHANGED names the slot that changed, also when only the
+-- copy did, so one slot is read per change (UNIT_INVENTORY_CHANGED, which also
+-- fires for every charge, durability point and arrow, reads nothing).
 local equippedSlotIDs,equippedGUIDs={},{}
-function GearRack.RefreshEquippedItemIDs()
+local function read_slot(slot)
+    local itemID,guid=GetInventoryItemID("player",slot),equippedGUID(slot)
+    local changed=equippedSlotIDs[slot]~=itemID or equippedGUIDs[slot]~=guid
+    equippedSlotIDs[slot],equippedGUIDs[slot]=itemID,guid
+    return changed
+end
+
+-- Reads one slot, or all 19; returns whether a worn item changed.
+function GearRack.RefreshEquippedItemIDs(slot)
     local changed=not GearRack.equippedRead
     GearRack.equippedRead=true
-    table.wipe(GearRack.EquippedItemIDs)
-    table.wipe(GearRack.BagContainerIDs)
-    for slot=1,23 do
-        local itemID=GetInventoryItemID("player",slot)
-        if equippedSlotIDs[slot]~=itemID then changed=true end
-        equippedSlotIDs[slot]=itemID
-        if slot<=19 then
-            local guid=equippedGUID(slot)
-            if equippedGUIDs[slot]~=guid then changed=true end
-            equippedGUIDs[slot]=guid
+    if slot then changed=read_slot(slot) or changed
+    else for s=1,19 do changed=read_slot(s) or changed end end
+    if changed then
+        table.wipe(GearRack.EquippedItemIDs)
+        for s=1,19 do
+            local itemID=equippedSlotIDs[s]
             if itemID and itemID>0 then GearRack.EquippedItemIDs[itemID]=true end
-        else GearRack.BagContainerIDs[slot-19]=itemID end
+        end
     end
     return changed
 end
@@ -278,8 +299,9 @@ function GearRack.ItemDataReceived(itemID,success)
     if not success or not itemID then return end
     local changed
     for bag=0,4 do
+        -- Bags 1-4 are worn in inventory slots 20-23.
         if (GearRack.BagItemIDs[bag] and GearRack.BagItemIDs[bag][itemID])
-            or GearRack.BagContainerIDs[bag]==itemID then
+            or (bag>0 and GetInventoryItemID("player",19+bag)==itemID) then
             GearRack.InvalidateBag(bag)
             changed=true
         end
@@ -646,17 +668,20 @@ function GearRack.UIEvent(ev,unit,spellID,castType)
         local bank=GearRackUI.BankIsOpen and type(unit)=="number" and (unit==-1 or (unit>=5 and unit<=10))
         return carried or bank,bank
     elseif ev=="GET_ITEM_INFO_RECEIVED" then return GearRack.ItemDataReceived(unit,spellID)
-    elseif ev=="UNIT_INVENTORY_CHANGED" and unit=="player" then
-        -- Also fires for durability, charges and ammo counts. Views redraw only
-        -- when a worn item really changed; swaps still check completion.
-        local changed=GearRack.RefreshEquippedItemIDs()
+    elseif ev=="PLAYER_EQUIPMENT_CHANGED" then
+        -- unit is the slot. Views redraw only when its item or copy changed.
+        local changed=GearRack.RefreshEquippedItemIDs(unit)
         if changed then
             GearRack.InvalidateBag()
-            GearRackTrinkets.UpdateWornTrinkets()
+            if unit==13 or unit==14 then GearRackTrinkets.UpdateWornTrinkets() end
         end
-        if GearRackEngine.SwapRequest then GearRackEngine.OnItemLockChanged() end
         GearRack.Wake()
         return changed
+    elseif ev=="UNIT_INVENTORY_CHANGED" and unit=="player" then
+        -- Charges, durability and ammo: no worn item changed, but a swap in
+        -- progress checks whether it is done.
+        if GearRackEngine.SwapRequest then GearRackEngine.OnItemLockChanged() end
+        GearRack.Wake()
     elseif ev=="ACTIONBAR_UPDATE_COOLDOWN" then GearRackTrinkets.UpdateWornCooldowns();GearRack.Wake()
     elseif ev=="UPDATE_BINDINGS" then
         GearRackTrinkets.ReflectKeyBindings()
@@ -706,7 +731,6 @@ end
 
 function GearRack.Initialize()
     if GearRack.initialized then return end
-    GearRack.NormalizeSavedData()
     GearRackUIFrame:RegisterEvent("SPELL_CAST_EVENT")
     GearRackTrinkets.LoadDefaults()
     GearRackTrinkets.Initialize()

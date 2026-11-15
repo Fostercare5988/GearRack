@@ -1040,6 +1040,19 @@ local function unlocked()
 	return GearRackDB.bars[user].Locked~="ON"
 end
 
+-- A locked bar shows its controls while Alt is held over it. They go when Alt
+-- is let go (ClassicAPI's MODIFIER_STATE_CHANGED); nothing is polled.
+local function watch_alt()
+	if GearRackDB.bars[user].Locked~="ON" then
+		GearRackUIFrame:UnregisterEvent("MODIFIER_STATE_CHANGED")
+	elseif IsLeftAltKeyDown() or IsRightAltKeyDown() then
+		GearRackUIFrame:RegisterEvent("MODIFIER_STATE_CHANGED")
+	else
+		GearRackUIFrame:UnregisterEvent("MODIFIER_STATE_CHANGED")
+		GearRackUI_ControlFrame:Hide()
+	end
+end
+
 -- sets window lock "ON" or "OFF"
 local function set_lock(arg1)
 
@@ -1051,8 +1064,7 @@ local function set_lock(arg1)
 		GearRackUI_InvFrame_Resize:Hide()
 		GearRackUI_Control_Rotate:SetAlpha(.4)
 		GearRackUI_Control_Rotate:Disable()
-		-- The controls stay while Alt is held, then hide.
-		GearRackEngine.StartTimer("ControlFrame")
+		watch_alt()
 	else
 		GearRackUI_InvFrame:SetBackdropColor(1,1,1,1)
 		GearRackUI_InvFrame:SetBackdropBorderColor(1,1,1,1)
@@ -1060,6 +1072,7 @@ local function set_lock(arg1)
 		GearRackUI_Control_Rotate:SetAlpha(1)
 		GearRackUI_Control_Rotate:Enable()
 		GearRackUI_ControlFrame:Show()
+		watch_alt()
 	end
 end
 
@@ -1117,8 +1130,6 @@ local function move_icon()
 end
 
 local function initialize_data()
-
-	GearRack.NormalizeSavedData()
 
 	-- create new user if one doesn't exist
 	if not GearRackDB.bars[user] then
@@ -1291,12 +1302,15 @@ function GearRackUI_OnEvent(ev)
 		GearRackEngine.ReconcileBankTransfer()
 	end
 
-	if ev=="UNIT_INVENTORY_CHANGED" then
-		-- The ammo count is the one view that changes without a new item.
-		if a1=="player" and (dataChanged or GearRackDB.bars[user].Inv[0]) then
-			inventory_changed()
-		end
-		if a1=="player" then GearRackUI.EnchantLabelsChanged() end
+	if ev=="PLAYER_EQUIPMENT_CHANGED" then
+		if dataChanged then inventory_changed() end
+		if a1==16 or a1==17 then GearRackUI.EnchantLabelsChanged() end
+	elseif ev=="UNIT_INVENTORY_CHANGED" then
+		-- A charge or an arrow used: the poison labels and the ammo count.
+		if GearRackDB.bars[user].Inv[0] then inventory_changed() end
+		GearRackUI.EnchantLabelsChanged()
+	elseif ev=="MODIFIER_STATE_CHANGED" then
+		watch_alt()
 	elseif ev=="PLAYER_AURAS_CHANGED" then
 		GearRackUI_BuffsChanged()
 
@@ -1338,6 +1352,7 @@ function GearRackUI_OnEvent(ev)
 
 		-- Player only: ClassicAPI fires unit events once per token, nameplates included.
 		f:RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player")
+		f:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 		f:RegisterEvent("UPDATE_BINDINGS")
 		f:RegisterEvent("BAG_UPDATE")
 		f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
@@ -1758,7 +1773,7 @@ function GearRackUI_Inv_OnEnter()
 		end
 		if IsAltKeyDown() then
 			GearRackUI_ControlFrame:Show()
-			GearRackEngine.StartTimer("ControlFrame")
+			watch_alt()
 		end
 	end
 end
@@ -3703,17 +3718,6 @@ function GearRackUI.TooltipUpdate()
 	end
 end
 
--- Hides the bar's controls once Alt is released over a locked bar. An unlocked
--- bar always shows them, so there is nothing to watch.
-function GearRackUI.ControlFrameUpdate()
-	if GearRackDB.bars[user].Locked~="ON" then
-		GearRackEngine.StopTimer("ControlFrame")
-	elseif not IsAltKeyDown() then
-		GearRackEngine.StopTimer("ControlFrame")
-		GearRackUI_ControlFrame:Hide()
-	end
-end
-
 -- Only the current source and its flyout keep a menu open. The small halo
 -- bridges the gap between them; ClassicAPI handles each region's own scale.
 function GearRackUI.MenuFrameUpdate()
@@ -3744,7 +3748,6 @@ function GearRackUI.CreateTimers()
 	GearRackEngine.CreateTimer("IconDragging",GearRack.UpdateMinimapDrag,0,1) -- minimap button dragging, each frame
 	GearRackEngine.CreateTimer("ScaleUpdate",GearRackUI.ScaleUpdate,.1,1)
 	GearRackEngine.CreateTimer("TooltipUpdate",GearRackUI.TooltipUpdate,1,1)
-	GearRackEngine.CreateTimer("ControlFrame",GearRackUI.ControlFrameUpdate,.75,1) -- controls on a locked bar
 	GearRackEngine.CreateTimer("MenuFrame",GearRackUI.MenuFrameUpdate,.25,1) -- closes a flyout the pointer left
-	GearRackEngine.CreateTimer("InvUpdate",GearRackUI_InvUpdate_OnUpdate,.05,1) -- one redraw per burst of changes
+	GearRackEngine.CreateTimer("InvUpdate",GearRackUI_InvUpdate_OnUpdate,.05) -- one redraw per burst of changes
 end

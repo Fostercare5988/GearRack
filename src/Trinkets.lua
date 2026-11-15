@@ -28,29 +28,31 @@ local function Menu(i)
 	return m
 end
 
+GearRackTrinkets.Defaults = {
+	KeepOpen = "OFF",			-- whether menu hides after use
+	KeepDocked = "ON",			-- whether to keep menu docked at all times
+	Locked = "OFF",				-- whether windows can be moved/scaled/rotated
+	SetColumns = "OFF",			-- whether number of columns in menu is chosen automatically
+	Columns = 2,				-- if SetColumns "ON", number of columns before menu wraps
+	ShowHotKeys = "ON",		-- whether hotkeys show on trinkets
+	StopOnSwap = "OFF"			-- whether to stop auto queue on all manual swaps
+}
+
+-- Per character: where the trinket buttons and their list sit.
+GearRackTrinkets.DisplayDefaults = {
+	MainDock = "TOPRIGHT",	-- corner of main window docked to
+	MenuDock = "TOPLEFT",	-- corner menu window is docked from
+	MainOrient = "VERTICAL",	-- direction of main window
+	MenuOrient = "VERTICAL",	-- direction of menu window
+	XPos = 423,					-- left edge of main window
+	YPos = 448,					-- top edge of main window
+	MainScale = 1,				-- scaling of main window
+	MenuScale = 1,				-- scaling of menu window
+	Visible="ON",				-- whether to display the trinkets
+}
+
 function GearRackTrinkets.LoadDefaults()
-
-	local defaults = {
-		KeepOpen = "OFF",			-- whether menu hides after use
-		KeepDocked = "ON",			-- whether to keep menu docked at all times
-		Locked = "OFF",				-- whether windows can be moved/scaled/rotated
-		SetColumns = "OFF",			-- whether number of columns in menu is chosen automatically
-		Columns = 2,				-- if SetColumns "ON", number of columns before menu wraps
-		ShowHotKeys = "ON",		-- whether hotkeys show on trinkets
-		StopOnSwap = "OFF"			-- whether to stop auto queue on all manual swaps
-	}
-
-	local displayDefaults = {
-		MainDock = "TOPRIGHT",	-- corner of main window docked to
-		MenuDock = "TOPLEFT",	-- corner menu window is docked from
-		MainOrient = "VERTICAL",	-- direction of main window
-		MenuOrient = "VERTICAL",	-- direction of menu window
-		XPos = 423,					-- left edge of main window
-		YPos = 448,					-- top edge of main window
-		MainScale = 1,				-- scaling of main window
-		MenuScale = 1,				-- scaling of menu window
-		Visible="ON",				-- whether to display the trinkets
-	}
+	local defaults, displayDefaults = GearRackTrinkets.Defaults, GearRackTrinkets.DisplayDefaults
 	GearRackDB.trinketOptions = type(GearRackDB.trinketOptions)=="table" and GearRackDB.trinketOptions or {}
 	GearRackCharDB.trinkets = type(GearRackCharDB.trinkets)=="table" and GearRackCharDB.trinkets or {}
 	local options, per = GearRackDB.trinketOptions, GearRackCharDB.trinkets

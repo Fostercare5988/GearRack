@@ -21,7 +21,6 @@ GearRack.DirtyBags={}
 GearRack.Bags={}
 GearRack.BagItemIDs={}
 GearRack.EquippedItemIDs={}
-GearRack.BagContainerIDs={}
 GearRack.Items={}
 GearRack.ByID={}
 GearRack.ByName={}

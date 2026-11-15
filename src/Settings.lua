@@ -13,7 +13,7 @@ function GearRack.ToggleSettings()
 end
 
 function GearRack.GetBarProfile()
-    return GearRackDB.bars[GearRack.CharacterKey()]
+    return GearRackDB.bars[GearRack.user]
 end
 
 function GearRack.OpenGearSets()

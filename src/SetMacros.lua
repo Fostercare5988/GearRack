@@ -9,7 +9,7 @@ local PREFIX = "/gr equip "
 local ICONS = "Interface\\Icons\\"
 
 local function sets()
-    return GearRackDB.sets[GearRack.CharacterKey()].Sets
+    return GearRackDB.sets[GearRack.user].Sets
 end
 
 -- Macro icons live under Interface\Icons; anything else shows the question mark.
