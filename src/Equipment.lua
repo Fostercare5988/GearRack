@@ -1997,17 +1997,6 @@ end
 
 --[[ Cooldowns ]]--
 
--- Ready alert for a used item, when wanted; also fires GEARRACK_NOTIFY for events.
-local function notify(name)
-	if GearRackDB.settings.Notify=="ON" then
-		GearRack.Alert(string.format((GearRackDB.settings.NotifyThirty=="OFF") and GearRackUIText.READY or GearRackUIText.READYTHIRTY,name))
-	end
-	if GearRackDB.settings.EnableEvents=="ON" then
-		GearRackUI_RegisterFrame_OnEvent("GEARRACK_NOTIFY",name)
-	end
-end
-GearRackUI_Notify = notify
-
 -- The seconds until the next shown enchant label changes, while one is shown.
 local soonest
 local function track(seconds)

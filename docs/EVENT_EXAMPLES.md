@@ -213,6 +213,15 @@ Trigger `GEARRACK_ITEMUSED`. `arg1` is the item's name, `arg2` its slot.
 if arg1 == "Insignia of the Horde" then GearRack.EquipSet() end
 ```
 
+### When a used item is ready again
+
+Trigger `GEARRACK_NOTIFY`. `arg1` is the item's name. It fires when the item's
+cooldown ends, also when **Notify at 30 sec** moves the chat alert earlier.
+
+```lua
+if arg1 == "Insignia of the Horde" then GearRack.EquipSet() end
+```
+
 ### When your attack is dodged
 
 Trigger `GEARRACK_DODGED`. It fires when a target dodges your swing, spell or

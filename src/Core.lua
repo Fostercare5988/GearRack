@@ -332,12 +332,14 @@ function GearRack.WantsReadyNotice()
     return GearRackDB.settings.Notify=="ON" or GearRackUI.Register.GEARRACK_NOTIFY~=nil
 end
 
--- A used item is ready (soon: 30 seconds left). Notify at 30 replaces the
--- ready message; both go through the equipment notifier and its event.
+-- A used item is ready (soon: 30 seconds left). Notify at 30 moves the chat
+-- alert to 30 seconds left; GEARRACK_NOTIFY events always hear it at ready.
 function GearRack.ItemReady(name,soon)
-    if GearRack.WantsReadyNotice() and soon==(GearRackDB.settings.NotifyThirty=="ON") then
-        GearRackUI_Notify(name)
+    local settings=GearRackDB.settings
+    if settings.Notify=="ON" and soon==(settings.NotifyThirty=="ON") then
+        GearRack.Alert(string.format(soon and GearRackUIText.READYTHIRTY or GearRackUIText.READY,name))
     end
+    if not soon and settings.EnableEvents=="ON" then GearRackUI_RegisterFrame_OnEvent("GEARRACK_NOTIFY",name) end
 end
 
 -- Ready alerts for used items: one watch per item ID, wherever the item moves.
