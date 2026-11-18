@@ -232,19 +232,36 @@ function GR.ToggleSlot(slot)
     return not found
 end
 
--- The Sets button shows the worn set's icon; once per frame of changes.
+-- The Sets button shows the set last put on by hand, by icon and by name below
+-- it (white while all of it is worn, grey when not), as 1.x did. When it is not
+-- all worn and a set of as many slots or more is (the player changed by hand),
+-- that one instead; a weapons-only set never takes over a full one.
+-- Once per frame of changes.
+setsButton.label = setsButton:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+setsButton.label:SetPoint("TOP", setsButton, "BOTTOM", 0, -2)
+function GR.CurrentSet()
+    local mine, mineWhole, mineSize, best, most
+    for _, id in ipairs(GR.Sets()) do
+        local name, _, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(id)
+        local size = 19 - #C_EquipmentSet.GetIgnoredSlots(id)
+        if name == db.current then mine, mineWhole, mineSize = id, isEquipped, size end
+        if isEquipped and (not most or size > most) then best, most = id, size end
+    end
+    if mine and (mineWhole or not best or most < mineSize) then return mine end
+    return best
+end
 local setsDue
 local function SetsIcon()
     setsDue = nil
-    local ids = GR.Sets()
-    local icon, name = SETS_ICON, nil
-    for _, id in ipairs(ids) do
-        local setName, setIcon, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(id)
-        if isEquipped then icon, name = GR.Icon(setIcon), setName; break end
-    end
-    setsButton.icon:SetTexture(icon)
+    local id = GR.CurrentSet()
+    local name, icon, _, whole = nil, nil, nil, nil
+    if id then name, icon, _, whole = C_EquipmentSet.GetEquipmentSetInfo(id) end
+    setsButton.icon:SetTexture(id and GR.Icon(icon) or SETS_ICON)
+    setsButton.label:SetText(name or "")
+    if whole then setsButton.label:SetTextColor(1, 1, 1) else setsButton.label:SetTextColor(0.6, 0.6, 0.6) end
     setsButton.wornSet = name
 end
+function GR.SetsChanged() if not setsDue then setsDue = true; C_Timer.After(0, SetsIcon) end end
 
 local function Keys()
     for _, b in ipairs(trinket.list) do
@@ -276,7 +293,7 @@ events:SetScript("OnEvent", function()
         for _, b in ipairs(trinket.list) do Draw(b) end
         Keys()
     end
-    if not setsDue then setsDue = true; C_Timer.After(0, SetsIcon) end
+    GR.SetsChanged()
 end)
 
 -- K10: Ctrl+Shift shows a handle over each shown bar; dragging it moves the bar,

@@ -10,7 +10,7 @@ local QUESTION = "INV_Misc_QuestionMark"
 local SIZE, STEP, ROW, VISIBLE, WIDTH = 36, 40, 24, 13, 304
 
 local window = CreateFrame("Frame", "GearRackSetsWindow", UIParent)
-window:SetSize(WIDTH, 470)
+window:SetSize(WIDTH, 528)
 window:SetPoint("CENTER", UIParent, "CENTER", 0, 40) -- until moved; the client keeps its place then
 window:SetFrameStrata("HIGH")
 window:SetMovable(true)
@@ -56,6 +56,7 @@ local function DrawSlot(b)
     b.icon:SetTexture(texture or GR.EMPTY[slot])
     b.icon:SetDesaturated(not lit[slot])
     b.icon:SetAlpha(lit[slot] and 1 or 0.35)
+    if lit[slot] then b.out:Hide() else b.out:Show() end
     local color = texture and lit[slot] and ITEM_QUALITY_COLORS[GetInventoryItemQuality("player", slot) or -1]
     if color then b.edge:SetBackdropBorderColor(color.r, color.g, color.b) else b.edge:SetBackdropBorderColor(0, 0, 0) end
 end
@@ -80,6 +81,11 @@ local function Slot(slot, way, x, y)
     b.icon:SetAllPoints(b)
     b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     b.edge = GR.Edge(b)
+    -- A slot left out of the set: dark, with a red cross.
+    b.out = b.edge:CreateTexture(nil, "OVERLAY")
+    b.out:SetSize(18, 18)
+    b.out:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 1, -1)
+    b.out:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     b:SetScript("OnClick", function()
         lit[this.slot] = not lit[this.slot]
         DrawSlot(this)
@@ -163,14 +169,16 @@ StaticPopupDialogs.GEARRACK_DELETE = {
     button1 = YES, button2 = NO,
     timeout = 0, whileDead = 1, hideOnEscape = 1,
     OnAccept = function(id)
-        db.ammo[C_EquipmentSet.GetEquipmentSetInfo(id) or ""] = nil
+        local name = C_EquipmentSet.GetEquipmentSetInfo(id) or ""
+        db.ammo[name], db.hidden[name] = nil, nil
+        if db.current == name then db.current = nil end
         C_EquipmentSet.DeleteEquipmentSet(id)
     end,
 }
 
 local function WindowButton(text, x, onClick, tip)
     local b = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
-    b:SetSize(84, 22)
+    b:SetSize(66, 22)
     b:SetPoint("TOPLEFT", window, "TOPLEFT", x, -32 - 9 * STEP - 40)
     b:SetText(text)
     b:SetScript("OnClick", onClick)
@@ -182,13 +190,41 @@ local function WindowButton(text, x, onClick, tip)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return b
 end
-local equip = WindowButton("Equip", 14, function() GR.UseSet(Named()) end, "Put on the set with this name.")
-local save = WindowButton("Save", 110, Save,
-    "Save what you wear in the lit slots under this name: a new name makes a new set.")
-local delete = WindowButton("Delete", 206, function()
+-- New: an empty name, every slot lit, the question mark; type a name, then Save.
+local function New()
+    chosen, icon = nil, QUESTION
+    for slot = 0, 19 do lit[slot] = true end
+    box:SetText("")
+    box:SetFocus()
+    Draw()
+end
+WindowButton("New", 12, New, "Start a new set from what you wear: type its name, then press Save.")
+local equip = WindowButton("Equip", 84, function() GR.UseSet(Named()) end, "Put on the set with this name.")
+local save = WindowButton("Save", 156, Save,
+    "Save what you wear in the lit slots under this name. A new name makes a new set.")
+local delete = WindowButton("Delete", 228, function()
     local id = Named()
     StaticPopup_Show("GEARRACK_DELETE", C_EquipmentSet.GetEquipmentSetInfo(id), nil, id)
 end, "Delete the set with this name.")
+
+-- 1.x's hide mark: a hidden set stays out of the Sets button's menu (Alt shows it).
+local hide = CreateFrame("CheckButton", nil, window, "UICheckButtonTemplate")
+hide:SetSize(24, 24)
+hide:SetPoint("TOPLEFT", window, "TOPLEFT", 10, -32 - 9 * STEP - 66)
+hide.label = hide:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+hide.label:SetPoint("LEFT", hide, "RIGHT", 2, 0)
+hide.label:SetText("Hide from the Sets menu (hold Alt to see it)")
+hide:SetScript("OnClick", function()
+    local name = C_EquipmentSet.GetEquipmentSetInfo(Named() or 0)
+    if name then db.hidden[name] = this:GetChecked() and true or nil end
+    Draw()
+end)
+local hint = window:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+hint:SetPoint("TOPLEFT", window, "TOPLEFT", 14, -32 - 9 * STEP - 94)
+hint:SetWidth(WIDTH - 28)
+hint:SetJustifyH("LEFT")
+hint:SetText("The slots show what you wear. Lit slots go into the set when you press Save; "
+    .. "click a slot to leave it out (a red cross) or take it in again.")
 
 -- The sets between the slot columns: icon and name, a tick when worn. Its tooltip
 -- names what is missing (### GameTooltip:SetEquipmentSet); a drag puts it on an
@@ -240,6 +276,7 @@ Draw = function()
             r.id, r.setName = id, name
             r.icon:SetTexture(GR.Icon(setIcon))
             r.text:SetText(name)
+            if db.hidden[name] then r.text:SetTextColor(0.55, 0.55, 0.55) else r.text:SetTextColor(1, 1, 1) end
             if isEquipped then r.worn:Show() else r.worn:Hide() end
             if id == chosen then r.mark:Show() else r.mark:Hide() end
             r:Show()
@@ -251,7 +288,8 @@ Draw = function()
     if not known then chosen = nil end
     for _, b in ipairs(slots) do DrawSlot(b) end
     local named = Named()
-    if named then equip:Enable(); delete:Enable() else equip:Disable(); delete:Disable() end
+    if named then equip:Enable(); delete:Enable(); hide:Enable() else equip:Disable(); delete:Disable(); hide:Disable() end
+    hide:SetChecked(named and db.hidden[C_EquipmentSet.GetEquipmentSetInfo(named)])
     if (box:GetText() or "") ~= "" then save:Enable() else save:Disable() end
     iconButton.texture:SetTexture(GR.Icon(icon))
 end
@@ -267,25 +305,25 @@ window:SetScript("OnEvent", function()
         for name in pairs(db.ammo) do
             if not C_EquipmentSet.GetEquipmentSetID(name) then db.ammo[name] = nil end
         end
+        for name in pairs(db.hidden) do
+            if not C_EquipmentSet.GetEquipmentSetID(name) then db.hidden[name] = nil end
+        end
+        if db.current and not C_EquipmentSet.GetEquipmentSetID(db.current) then db.current = nil end
     elseif not due then due = true; C_Timer.After(0, Due) end
 end)
 window:SetScript("OnShow", function()
     for _, e in ipairs({ "EQUIPMENT_SETS_CHANGED", "EQUIPMENT_SWAP_FINISHED", "PLAYER_EQUIPMENT_CHANGED" }) do
         this:RegisterEvent(e)
     end
-    -- The worn set is shown at opening; else the one shown last.
-    local ids = GR.Sets()
-    for _, id in ipairs(ids) do
-        if select(4, C_EquipmentSet.GetEquipmentSetInfo(id)) then chosen = id; break end
-    end
-    Choose(chosen)
+    -- At opening, the set the Sets button names; else the one shown last.
+    Choose(GR.CurrentSet() or chosen)
     GR.AutoWatch() -- nothing changes by itself while the window shows (K14)
 end)
 window:SetScript("OnHide", function()
     this:UnregisterAllEvents()
     GR.AutoWatch()
 end)
--- KP-64: the ammo of a set that is gone, cleared once at login.
+-- KP-64: the ammo, hide mark and `current` of a set that is gone, cleared once at login.
 window:RegisterEvent("PLAYER_ENTERING_WORLD")
 function GR.WindowShown() return window:IsShown() end
 function GR.ToggleWindow() if window:IsShown() then window:Hide() else window:Show() end end

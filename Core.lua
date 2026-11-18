@@ -15,12 +15,12 @@ for key, value in pairs(GR.DEFAULTS) do
     if db[key] == nil then db[key] = value end
 end
 db.when, db.target, db.slots = db.when or {}, db.target or {}, db.slots or { 16, 17, 18 }
-db.ammo, db.trinkets, db.angles = db.ammo or {}, db.trinkets or {}, db.angles or {}
+db.ammo, db.trinkets, db.angles, db.hidden = db.ammo or {}, db.trinkets or {}, db.angles or {}, db.hidden or {}
 db.queue = db.queue or {}
 for slot = 13, 14 do db.queue[slot] = db.queue[slot] or { on = false, list = {} } end
 -- KP-64: one sweep clears every saved key nothing owns.
 local OWNED = { gearBar = 1, trinketBar = 1, readyAlert = 1, auto = 1, minimap = 1, when = 1, target = 1, slots = 1,
-    before = 1, ammo = 1, trinkets = 1, angles = 1, queue = 1 }
+    before = 1, ammo = 1, trinkets = 1, angles = 1, queue = 1, hidden = 1, current = 1 }
 for key in pairs(db) do
     if not OWNED[key] then db[key] = nil end
 end
@@ -100,11 +100,17 @@ end
 
 -- K2: in combat the weapons change at once and the rest when combat ends;
 -- dead, all of it waits. `once`: a set for a target, not finished later.
--- A set worn by hand (not `once`, not a `situation`) stops the queues of the
--- trinket slots it holds, as TrinketMenu's manual choices do.
+-- A set worn by hand (not `once`, not a `situation`) is the one the Sets
+-- button names (`current`, as 1.x's CurrentSet), and it stops the queues of
+-- the trinket slots it holds, as TrinketMenu's manual choices do.
+local function ByHand(id)
+    db.current = C_EquipmentSet.GetEquipmentSetInfo(id)
+    GR.QueueSet(id)
+    GR.SetsChanged()
+end
 function GR.UseSet(id, once, situation)
     pending = nil
-    if not once and not situation then GR.QueueSet(id) end
+    if not once and not situation then ByHand(id) end
     if UnitIsDeadOrGhost("player") then
         if not once then pending = id end
     else
@@ -177,7 +183,7 @@ events:SetScript("OnEvent", function()
         stale = true
     elseif event == "WEAR_EQUIPMENT_SET" then
         -- ClassicAPI's own handler swaps what it can (Util/EquipmentManager.lua).
-        GR.QueueSet(arg1)
+        ByHand(arg1)
         if UnitAffectingCombat("player") or UnitIsDeadOrGhost("player") then pending = arg1; Listen() end
     elseif event == "BAG_UPDATE_DELAYED" then
         for slot, guid in pairs(want) do

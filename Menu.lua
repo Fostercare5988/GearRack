@@ -2,6 +2,7 @@
 -- fit it and that the character can wear, each copy on its own, and an empty
 -- button that takes the worn item off. For the Sets button: every set by name.
 local _, GR = ...
+local db = GearRackDB
 
 local SIZE, STEP, PAD = 36, 40, 4
 local FLAT = "Interface\\Buttons\\WHITE8X8"
@@ -75,15 +76,20 @@ local function FillItems(s)
     return n
 end
 
+-- The sets by name, the one the Sets button names in gold; a hidden one only
+-- while Alt is held (1.x's hide mark).
 local function FillSets()
     table.wipe(list)
-    local ids = GR.Sets()
-    for n, id in ipairs(ids) do
-        local e = Entry(n)
-        local name, icon, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(id)
-        e.guid, e.off, e.set, e.name, e.icon, e.worn, e.enable = nil, nil, id, name, GR.Icon(icon), isEquipped, 0
+    local n, current = 0, GR.CurrentSet()
+    for _, id in ipairs(GR.Sets()) do
+        local name, icon = C_EquipmentSet.GetEquipmentSetInfo(id)
+        if not db.hidden[name] or IsAltKeyDown() then
+            n = n + 1
+            local e = Entry(n)
+            e.guid, e.off, e.set, e.name, e.icon, e.worn, e.enable = nil, nil, id, name, GR.Icon(icon), id == current, 0
+        end
     end
-    return #ids
+    return n
 end
 
 -- The menu's buttons: an item's icon, or a set's icon and name.
