@@ -1,62 +1,33 @@
--- GearRack on the character window: a slot's menu on hover (K7), Alt-click
+-- GearRack on the character window: a slot's menu on hover (K7), Alt+click
 -- to put a slot on the gear bar (K9), and the ticks of the sets panel (K3).
 local _, GR = ...
 
--- Menus open over the model, the weapons' downward (PaperDollFrame.xml: the
--- left column, the right column, the weapons below the model).
+-- Menus open to the right, the weapons' downward, as GearRack 1.x opened them
+-- (PaperDollFrame.xml: the weapons sit below the model).
 local WAY = {}
-for _, slot in ipairs({ 1, 2, 3, 15, 5, 4, 19, 9 }) do WAY[slot] = "RIGHT" end
-for _, slot in ipairs({ 10, 6, 7, 8, 11, 12, 13, 14 }) do WAY[slot] = "LEFT" end
-for _, slot in ipairs({ 16, 17, 18 }) do WAY[slot] = "DOWN" end
+for slot = 1, 19 do WAY[slot] = slot >= 16 and slot <= 18 and "DOWN" or "RIGHT" end
 
-local sheet, overlays, ticks, altShown = {}, {}, {}, false
+local sheet, ticks = {}, {}
 for slot, name in ipairs(GR.SLOT_NAMES) do
-    sheet[slot] = _G["Character" .. name]
-    sheet[slot]:HookScript("OnLeave", GR.MenuLeave) -- their OnLeave is inline XML
+    local b = _G["Character" .. name]
+    sheet[slot] = b
+    b:HookScript("OnLeave", GR.MenuLeave) -- their OnLeave is inline XML
+    -- K9: Alt+click puts the slot at the end of the gear bar or takes it off;
+    -- any other click is the slot's own (PaperDollItemSlotButton_OnClick).
+    local stock = b:GetScript("OnClick")
+    b:SetScript("OnClick", function(...)
+        if not IsAltKeyDown() then return stock(...) end
+        local on = GR.ToggleSlot(slot)
+        GR.Print((_G[string.upper(name)] or name) .. (on and " is on the gear bar." or " is off the gear bar."))
+    end)
 end
 
 -- PaperDollItemSlotButton_OnEnter also runs each frame while the slot owns the
 -- tooltip (PaperDollFrame.lua:750); an open menu returns at once.
 hooksecurefunc("PaperDollItemSlotButton_OnEnter", function()
     local slot = this:GetID()
-    if sheet[slot] == this and not altShown then GR.OpenMenu(this, slot, WAY[slot]) end
+    if sheet[slot] == this then GR.OpenMenu(this, slot, WAY[slot]) end
 end)
-
--- K9: while Alt is held with the window open, each slot shows whether it is on the bar.
-local function Tint()
-    for slot, o in pairs(overlays) do
-        if GR.OnBar(slot) then o.tint:SetVertexColor(0.2, 0.9, 0.2, 0.45) else o.tint:SetVertexColor(0, 0, 0, 0.55) end
-    end
-end
-local function Overlay(slot)
-    local o = CreateFrame("Button", nil, sheet[slot])
-    o:SetAllPoints(sheet[slot])
-    o:SetFrameLevel(sheet[slot]:GetFrameLevel() + 3)
-    o.tint = o:CreateTexture(nil, "OVERLAY")
-    o.tint:SetAllPoints(o)
-    o.tint:SetTexture("Interface\\Buttons\\WHITE8X8")
-    o:SetScript("OnClick", function() GR.ToggleSlot(slot); Tint() end)
-    overlays[slot] = o
-end
-local function ShowOverlays(on)
-    altShown = on
-    if on then
-        GR.CloseMenu()
-        if not overlays[1] then for slot in ipairs(sheet) do Overlay(slot) end end
-        Tint()
-    end
-    for _, o in pairs(overlays) do
-        if on then o:Show() else o:Hide() end
-    end
-end
-
-local keys = CreateFrame("Frame")
-keys:RegisterEvent("MODIFIER_STATE_CHANGED")
-keys:SetScript("OnEvent", function()
-    local on = (IsLeftAltKeyDown() or IsRightAltKeyDown()) and PaperDollFrame:IsVisible() and true or false
-    if on ~= altShown then ShowOverlays(on) end
-end)
-PaperDollFrame:HookScript("OnHide", function() if altShown then ShowOverlays(false) end end)
 
 -- K3: a tick on each slot while the sets panel shows; ticked slots are saved.
 function GR.Ticks(on)

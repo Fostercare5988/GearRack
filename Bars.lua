@@ -201,15 +201,11 @@ end
 -- K9: a slot goes to the end of the gear bar, or off it.
 function GR.ToggleSlot(slot)
     for i, s in ipairs(db.slots) do
-        if s == slot then table.remove(db.slots, i); GR.Layout(); return end
+        if s == slot then table.remove(db.slots, i); GR.Layout(); return false end
     end
     db.slots[#db.slots + 1] = slot
     GR.Layout()
-end
-function GR.OnBar(slot)
-    for _, s in ipairs(db.slots) do
-        if s == slot then return true end
-    end
+    return true
 end
 
 -- The Sets button shows the worn set's icon; once per frame of changes.

@@ -3,7 +3,7 @@
 -- button that takes the worn item off. For the Sets button: every set by name.
 local _, GR = ...
 
-local SIZE, STEP, PAD, PER_LINE = 36, 40, 4, 6
+local SIZE, STEP, PAD = 36, 40, 4
 local FLAT = "Interface\\Buttons\\WHITE8X8"
 
 local menu = CreateFrame("Frame", "GearRackMenu", UIParent)
@@ -128,10 +128,13 @@ local function Pooled(i)
     return b
 end
 
--- Lines of up to six away from the owner; sets one under the other with their names.
+-- A narrow column away from the owner, as GearRack 1.x drew it: one item wide up
+-- to 4, two up to 12, three up to 18, four up to 24, then five. Sets one under
+-- the other with their names.
+local function Across(n) return n <= 4 and 1 or n <= 12 and 2 or n <= 18 and 3 or n <= 24 and 4 or 5 end
 local way
 local function Show(n)
-    local per, width = PER_LINE, SIZE
+    local per, width = Across(n), SIZE
     if sets then per, width = 1, 170 end
     local across, lines = math.min(n, per), math.ceil(n / per)
     local sideways = way == "LEFT" or way == "RIGHT"
