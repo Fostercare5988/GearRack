@@ -158,6 +158,7 @@ local function Show(n)
         else b.edge:SetBackdropBorderColor(0, 0, 0) end
         b.label:SetText(sets and e.name or "")
         GR.Timing(b, e.start or 0, e.duration or 0, e.enable)
+        if e.guid then GR.DrawPoison(b, e.guid) elseif b.poison then b.poison:Hide() end
         local line, at = math.floor((i - 1) / per), (i - 1) % per
         local x, y = PAD + at * STEP, PAD + line * STEP
         if sideways then x, y = PAD + line * STEP, PAD + at * STEP end

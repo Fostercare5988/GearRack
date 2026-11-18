@@ -112,6 +112,7 @@ local function OnClick()
     elseif trinket and arg1 == "RightButton" then GR.ToggleTrinkets(this.slot)
     elseif trinket and IsAltKeyDown() then GR.QueueToggle(this.slot)
     elseif arg1 == "RightButton" then return
+    elseif SpellIsTargeting() then PickupInventoryItem(this.slot) -- a poison or stone in hand: apply it here
     elseif IsShiftKeyDown() then
         if ChatFrameEditBox:IsVisible() then ChatFrameEditBox:Insert(GetInventoryItemLink("player", this.slot)) end
     else
@@ -216,6 +217,7 @@ function GR.Layout()
     GearList()
     Layout(gear)
     Layout(trinket)
+    if GR.Poisons then GR.Poisons() end
 end
 
 -- K9: a slot goes to the end of the gear bar, or off it. The list is made

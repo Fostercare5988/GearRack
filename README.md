@@ -39,6 +39,10 @@ the gear you wear. For World of Warcraft 1.12.1 with ClassicAPI.
   own buff is on you. Choosing a trinket or a set by hand turns the slot's
   swap off. A small gear on the trinket button shows it is on (grey while it
   waits).
+- **Poisons.** Each weapon button shows its poison (or oil, stone or imbue):
+  the icon and the time left, or the charges when 10 or fewer are left. The
+  weapons in the menus show theirs too. To apply a poison, use it from your
+  bags or an action bar, then click the weapon on the gear bar.
 - **Menus on the character window.** Hover any slot for the same menu.
 - **Ready alert.** When a worn item you used is ready in 30 seconds, and when
   it is ready: a sound, a line on screen and in chat.

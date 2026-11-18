@@ -8,6 +8,7 @@
 Core.lua
 Bars.lua
 Menu.lua
+Poison.lua
 Sheet.lua
 Sets.lua
 Queue.lua
