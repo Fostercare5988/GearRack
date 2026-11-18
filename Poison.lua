@@ -7,31 +7,21 @@
 local _, GR = ...
 
 local FALLBACK = "Interface\\Icons\\Ability_Poisons" -- an enchant whose spell has no icon
-local icons = {} -- enchantID -> the bottle's icon, once found
-
--- The poison's own bottle as the bags show it (the user: OctoWoW's spell icon
--- for Crippling Poison is a green one). Found by name with the rank left off
--- (### C_Container.GetContainerItemInfo); else the spell's icon.
-local slotInfo = {}
-local function Base(name) return (string.gsub(name or "", "%s+[IVX]+$", "")) end
-local function Bottle(name)
-    local base = Base(name)
-    if base == "" then return end
-    for bag = 0, 4 do
-        for s = 1, C_Container.GetContainerNumSlots(bag) do
-            local info = C_Container.GetContainerItemInfo(bag, s, slotInfo)
-            local itemName = info and info.hyperlink and string.match(info.hyperlink, "%[(.-)%]")
-            if itemName and info.iconFileID and Base(itemName) == base then return info.iconFileID end
-        end
-    end
-end
+local icons = {} -- enchantID -> icon, read once
+-- The classic icon where OctoWoW changed a poison's spell icon (the user: its
+-- Crippling Poison is green; the old one is the purple sting). By the enchant's
+-- name, rank left off. UNVERIFIED: the enchant's name on OctoWoW.
+local CLASSIC = { ["Crippling Poison"] = "Interface\\Icons\\Ability_PoisonSting" }
 
 local function Icon(enchantID)
-    if icons[enchantID] then return icons[enchantID] end
-    local info = C_Item.GetEnchantInfo(enchantID)
-    local bottle = info and Bottle(info.name)
-    if bottle then icons[enchantID] = bottle; return bottle end
-    return info and info.spellID and C_Spell.GetSpellTexture(info.spellID) or FALLBACK -- looked for again next time
+    local icon = icons[enchantID]
+    if not icon then
+        local info = C_Item.GetEnchantInfo(enchantID)
+        icon = info and CLASSIC[(string.gsub(info.name or "", "%s+[IVX]+$", ""))]
+            or info and info.spellID and C_Spell.GetSpellTexture(info.spellID) or FALLBACK
+        icons[enchantID] = icon
+    end
+    return icon
 end
 
 -- "28m", "2h", "45s", or "7c"; and the seconds until the label changes.
