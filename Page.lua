@@ -90,13 +90,20 @@ SettingsRegistrar:AddRegistrant(function()
         Choice(auto, db.when, row.key, row.label):SetParentInitializer(parent, On)
     end
 
-    -- Sets by target, under the same switch.
+    -- Sets by target: its own switch, then a set per enemy type.
     local target = Settings.RegisterVerticalLayoutSubcategory(category, "Sets by target")
-    local tip = "The set to wear when you target an enemy of this type. Needs Automatic sets on."
+    local byTarget = Settings.RegisterAddOnSetting(target, "GearRack_byTarget", "byTarget", db, Settings.VarType.Boolean,
+        "Sets by target", GR.DEFAULTS.byTarget)
+    byTarget:SetValueChangedCallback(GR.AutoWatch)
+    local targetParent = Settings.CreateCheckbox(target, byTarget,
+        "Put on a set when you target an enemy, chosen by its type below. A type left Off wears the "
+        .. "Any other enemy set. Nothing changes back afterwards.")
+    local function TargetOn() return db.byTarget end
+    local tip = "The set to wear when you target an enemy of this type."
     for _, kind in ipairs(GR.TYPES) do
-        Choice(target, db.target, kind, kind, tip):AddModifyPredicate(On)
+        Choice(target, db.target, kind, kind, tip):SetParentInitializer(targetParent, TargetOn)
     end
-    Choice(target, db.target, "other", "Any other enemy", tip):AddModifyPredicate(On)
+    Choice(target, db.target, "other", "Any other enemy", tip):SetParentInitializer(targetParent, TargetOn)
 end)
 
 function GR.OpenPage()

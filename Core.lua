@@ -10,7 +10,7 @@ local db = GearRackDB
 
 -- The bars and the switches start before the page registers, so their
 -- defaults are written here; `when` and `target` are the pages' (Auto.lua).
-GR.DEFAULTS = { gearBar = "ACROSS", trinketBar = "DOWN", readyAlert = true, auto = false, minimap = true }
+GR.DEFAULTS = { gearBar = "ACROSS", trinketBar = "DOWN", readyAlert = true, auto = false, byTarget = false, minimap = true }
 for key, value in pairs(GR.DEFAULTS) do
     if db[key] == nil then db[key] = value end
 end
@@ -19,7 +19,7 @@ db.ammo, db.trinkets, db.angles, db.hidden = db.ammo or {}, db.trinkets or {}, d
 db.queue = db.queue or {}
 for slot = 13, 14 do db.queue[slot] = db.queue[slot] or { on = false, list = {} } end
 -- KP-64: one sweep clears every saved key nothing owns.
-local OWNED = { gearBar = 1, trinketBar = 1, readyAlert = 1, auto = 1, minimap = 1, when = 1, target = 1, slots = 1,
+local OWNED = { gearBar = 1, trinketBar = 1, readyAlert = 1, auto = 1, byTarget = 1, minimap = 1, when = 1, target = 1, slots = 1,
     before = 1, ammo = 1, trinkets = 1, angles = 1, queue = 1, hidden = 1, current = 1 }
 for key in pairs(db) do
     if not OWNED[key] then db[key] = nil end

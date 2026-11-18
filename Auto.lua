@@ -138,11 +138,19 @@ local function Read(e)
     if changed or not e then Ask() end
 end
 
--- Only the events of rows in use, with the switch on and the Gear sets window closed.
+-- Only the events of rows in use, with their page's switch on and the Gear sets
+-- window closed. Sets by target has its own switch (the second play: a switch
+-- on another page left its rows grey with no reason shown).
 function GR.AutoWatch()
     events:UnregisterAllEvents()
     events:RegisterEvent("PLAYER_ENTERING_WORLD")
-    if not db.auto or GR.WindowShown() then return end
+    if GR.WindowShown() then return end
+    if db.byTarget then
+        for _, name in pairs(db.target) do
+            if SetID(name) then events:RegisterEvent("PLAYER_TARGET_CHANGED"); break end
+        end
+    end
+    if not db.auto then return end
     for _, row in ipairs(GR.Rows()) do
         row.listens = nil
         if SetID(db.when[row.key]) then
@@ -153,9 +161,6 @@ function GR.AutoWatch()
                 else events:RegisterEvent(e) end
             end
         end
-    end
-    for _, name in pairs(db.target) do
-        if SetID(name) then events:RegisterEvent("PLAYER_TARGET_CHANGED"); break end
     end
     Read()
 end
