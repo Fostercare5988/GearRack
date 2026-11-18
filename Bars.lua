@@ -241,7 +241,8 @@ setsButton.label = setsButton:CreateFontString(nil, "OVERLAY", "GameFontHighligh
 setsButton.label:SetPoint("TOP", setsButton, "BOTTOM", 0, -2)
 function GR.CurrentSet()
     local mine, mineWhole, mineSize, best, most
-    for _, id in ipairs(GR.Sets()) do
+    local ids = GR.Sets() -- one value: Lua 5.0's ipairs takes a second as a step
+    for _, id in ipairs(ids) do
         local name, _, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(id)
         local size = 19 - #C_EquipmentSet.GetIgnoredSlots(id)
         if name == db.current then mine, mineWhole, mineSize = id, isEquipped, size end

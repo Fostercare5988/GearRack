@@ -80,8 +80,8 @@ end
 -- while Alt is held (1.x's hide mark).
 local function FillSets()
     table.wipe(list)
-    local n, current = 0, GR.CurrentSet()
-    for _, id in ipairs(GR.Sets()) do
+    local n, current, ids = 0, GR.CurrentSet(), GR.Sets()
+    for _, id in ipairs(ids) do
         local name, icon = C_EquipmentSet.GetEquipmentSetInfo(id)
         if not db.hidden[name] or IsAltKeyDown() then
             n = n + 1
