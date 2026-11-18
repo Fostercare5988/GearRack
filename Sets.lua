@@ -1,46 +1,130 @@
--- GearRack: the sets panel beside the character window (K3). The sets by
--- name, a name, an icon, Equip, Save and Delete; the ticks on the slots say
--- which slots a set saves. Sets are ClassicAPI's (### EquipmentSet).
+-- GearRack: the Gear sets window (K17, K22). The 20 slots laid out as on the
+-- character window, each lit when the set saves it; the sets by name between
+-- them; a name, an icon, Equip, Save and Delete. Sets are ClassicAPI's
+-- (### EquipmentSet); a set's ammo is GearRack's own (GearRackDB.ammo).
 local _, GR = ...
+local db = GearRackDB
 
 local FLAT = "Interface\\Buttons\\WHITE8X8"
-local ROW, TOP = 24, 30
 local QUESTION = "INV_Misc_QuestionMark"
+local SIZE, STEP, ROW, VISIBLE, WIDTH = 36, 40, 24, 13, 304
 
-local panel = CreateFrame("Frame", "GearRackSetsPanel", PaperDollFrame)
-panel:SetWidth(200)
-panel:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", -34, -12) -- UNVERIFIED: where the window's art ends
-panel:SetBackdrop({ bgFile = FLAT, edgeFile = FLAT, edgeSize = 1 })
-panel:SetBackdropColor(0.06, 0.06, 0.06, 0.92)
-panel:SetBackdropBorderColor(0, 0, 0)
-panel:EnableMouse(true)
-panel:Hide()
-local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-title:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -8)
-title:SetText("Gear sets")
+local window = CreateFrame("Frame", "GearRackSetsWindow", UIParent)
+window:SetSize(WIDTH, 470)
+window:SetPoint("CENTER", UIParent, "CENTER", 0, 40) -- until moved; the client keeps its place then
+window:SetFrameStrata("HIGH")
+window:SetMovable(true)
+window:SetClampedToScreen(true)
+window:EnableMouse(true)
+window:SetBackdrop({ bgFile = FLAT, edgeFile = FLAT, edgeSize = 1 })
+window:SetBackdropColor(0.06, 0.06, 0.06, 0.94)
+window:SetBackdropBorderColor(0, 0, 0)
+window:Hide()
+UISpecialFrames[#UISpecialFrames + 1] = "GearRackSetsWindow" -- Escape closes it
 
-local chosen, icon = nil, QUESTION -- the set the buttons act on, and the icon Save gives
+-- The title bar moves the window; the close button, as on every window.
+function GR.TitleBar(w, text)
+    local bar = CreateFrame("Frame", nil, w)
+    bar:SetPoint("TOPLEFT", w, "TOPLEFT", 0, 0)
+    bar:SetPoint("TOPRIGHT", w, "TOPRIGHT", -24, 0)
+    bar:SetHeight(24)
+    bar:EnableMouse(true)
+    bar:SetScript("OnMouseDown", function() w:StartMoving() end)
+    bar:SetScript("OnMouseUp", function() w:StopMovingOrSizing() end)
+    local title = bar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("LEFT", bar, "LEFT", 10, 0)
+    title:SetText(text)
+    local close = CreateFrame("Button", nil, w, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", w, "TOPRIGHT", 2, 2)
+    close:SetScript("OnClick", function() w:Hide() end)
+end
+GR.TitleBar(window, "Gear sets")
 
-local box = CreateFrame("EditBox", "GearRackSetName", panel, "InputBoxTemplate")
-box:SetSize(144, 20)
+local chosen, icon = nil, QUESTION -- the set the window shows, and the icon Save gives
+local lit = {}                     -- slot -> true while the set saves it (0 is the ammo)
+for slot = 0, 19 do lit[slot] = true end
+
+-- The slots: the character window's two columns, the weapons and the ammo below.
+-- A slot's menu opens away from the window (Menu.lua), its tooltip on the other side.
+local LEFT, RIGHT, BOTTOM = { 1, 2, 3, 15, 5, 4, 19, 9 }, { 10, 6, 7, 8, 11, 12, 13, 14 }, { 16, 17, 18, 0 }
+local TIP = { LEFT = "ANCHOR_RIGHT", RIGHT = "ANCHOR_LEFT", DOWN = "ANCHOR_RIGHT" }
+local slots = {}
+
+local function DrawSlot(b)
+    local slot = b.slot
+    local texture = GetInventoryItemTexture("player", slot)
+    b.icon:SetTexture(texture or GR.EMPTY[slot])
+    b.icon:SetDesaturated(not lit[slot])
+    b.icon:SetAlpha(lit[slot] and 1 or 0.35)
+    local color = texture and lit[slot] and ITEM_QUALITY_COLORS[GetInventoryItemQuality("player", slot) or -1]
+    if color then b.edge:SetBackdropBorderColor(color.r, color.g, color.b) else b.edge:SetBackdropBorderColor(0, 0, 0) end
+end
+
+local function SlotTip(b)
+    GameTooltip:SetOwner(b, TIP[b.way])
+    if not GameTooltip:SetInventoryItem("player", b.slot) then
+        GameTooltip:SetText(b.slot == 0 and "Ammo" or _G[string.upper(GR.SLOT_NAMES[b.slot])])
+    end
+    GameTooltip:AddLine(lit[b.slot] and "Saved in the set. Click to leave it out." or "Left out of the set. Click to save it.",
+        1, 1, 1)
+    if b.slot > 0 then GameTooltip:AddLine("The menu puts another item in this slot.", 1, 1, 1) end
+    GameTooltip:Show()
+end
+
+local function Slot(slot, way, x, y)
+    local b = CreateFrame("Button", nil, window)
+    b.slot, b.way = slot, way
+    b:SetSize(SIZE, SIZE)
+    b:SetPoint("TOPLEFT", window, "TOPLEFT", x, y)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetAllPoints(b)
+    b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    b.edge = GR.Edge(b)
+    b:SetScript("OnClick", function()
+        lit[this.slot] = not lit[this.slot]
+        DrawSlot(this)
+        SlotTip(this)
+    end)
+    b:SetScript("OnEnter", function()
+        SlotTip(this)
+        if this.slot > 0 then GR.OpenMenu(this, this.slot, this.way) end
+    end)
+    b:SetScript("OnLeave", function()
+        if GameTooltip:IsOwned(this) then GameTooltip:Hide() end
+        GR.MenuLeave()
+    end)
+    slots[#slots + 1] = b
+end
+for i = 1, 8 do
+    Slot(LEFT[i], "LEFT", 8, -32 - (i - 1) * STEP)
+    Slot(RIGHT[i], "RIGHT", WIDTH - 8 - SIZE, -32 - (i - 1) * STEP)
+end
+for i, slot in ipairs(BOTTOM) do Slot(slot, "DOWN", (WIDTH - 4 * STEP + 4) / 2 + (i - 1) * STEP, -32 - 8 * STEP) end
+
+-- The name, the icon, and the three buttons below the slots.
+local box = CreateFrame("EditBox", "GearRackSetName", window, "InputBoxTemplate")
+box:SetSize(200, 20)
+box:SetPoint("TOPLEFT", window, "TOPLEFT", 16, -32 - 9 * STEP - 8)
 box:SetAutoFocus(false)
 box:SetMaxLetters(31) -- ### C_EquipmentSet.CreateEquipmentSet: shorter than 32
 box:SetScript("OnEscapePressed", function() this:ClearFocus() end)
 box:SetScript("OnEnterPressed", function() this:ClearFocus() end)
 
-local iconButton = CreateFrame("Button", nil, panel)
-iconButton:SetSize(24, 24)
-iconButton:SetPoint("LEFT", box, "RIGHT", 6, 0)
+local iconButton = CreateFrame("Button", nil, window)
+iconButton:SetSize(26, 26)
+iconButton:SetPoint("LEFT", box, "RIGHT", 10, 0)
 iconButton.texture = iconButton:CreateTexture(nil, "ARTWORK")
 iconButton.texture:SetAllPoints(iconButton)
+iconButton:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    GameTooltip:SetText("The set's icon")
+    GameTooltip:AddLine("Click to pick another. It is kept when you press Save.", 1, 1, 1)
+    GameTooltip:Show()
+end)
+iconButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-local hint = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-hint:SetWidth(184)
-hint:SetJustifyH("LEFT")
-hint:SetText("Tick the slots the set saves. A new icon is kept when you press Save.")
-
-local rows, buttons = {}, {}
 local Draw
+local function Named() return C_EquipmentSet.GetEquipmentSetID(box:GetText() or "") end
 
 local function Choose(id)
     chosen = id
@@ -48,7 +132,9 @@ local function Choose(id)
         local name, setIcon = C_EquipmentSet.GetEquipmentSetInfo(id)
         box:SetText(name)
         icon = setIcon or QUESTION
-        GR.SetTicks(C_EquipmentSet.GetIgnoredSlots(id))
+        for slot = 1, 19 do lit[slot] = true end
+        for _, slot in ipairs(C_EquipmentSet.GetIgnoredSlots(id)) do lit[slot] = false end
+        lit[0] = db.ammo[name] ~= nil
     end
     Draw()
 end
@@ -62,11 +148,13 @@ local function Save()
     end
     C_EquipmentSet.ClearIgnoredSlotsForSave()
     for slot = 1, 19 do
-        if not GR.Ticked(slot) then C_EquipmentSet.IgnoreSlotForSave(slot) end
+        if not lit[slot] then C_EquipmentSet.IgnoreSlotForSave(slot) end
     end
     local id = C_EquipmentSet.GetEquipmentSetID(name)
     if id then C_EquipmentSet.SaveEquipmentSet(id, icon) else id = C_EquipmentSet.CreateEquipmentSet(name, icon) end
     C_EquipmentSet.ClearIgnoredSlotsForSave()
+    if not id then return end
+    db.ammo[(C_EquipmentSet.GetEquipmentSetInfo(id))] = lit[0] and GR.AmmoID() or nil
     Choose(id)
 end
 
@@ -74,32 +162,42 @@ StaticPopupDialogs.GEARRACK_DELETE = {
     text = 'Delete the set "%s"?',
     button1 = YES, button2 = NO,
     timeout = 0, whileDead = 1, hideOnEscape = 1,
-    OnAccept = function(id) C_EquipmentSet.DeleteEquipmentSet(id) end,
+    OnAccept = function(id)
+        db.ammo[C_EquipmentSet.GetEquipmentSetInfo(id) or ""] = nil
+        C_EquipmentSet.DeleteEquipmentSet(id)
+    end,
 }
 
-local function PanelButton(text, x, onClick)
-    local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    b:SetSize(58, 22)
+local function WindowButton(text, x, onClick, tip)
+    local b = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
+    b:SetSize(84, 22)
+    b:SetPoint("TOPLEFT", window, "TOPLEFT", x, -32 - 9 * STEP - 40)
     b:SetText(text)
     b:SetScript("OnClick", onClick)
-    b.x = x
-    buttons[#buttons + 1] = b
+    b:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(tip)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return b
 end
-local equip = PanelButton("Equip", 8, function() GR.UseSet(chosen) end)
-PanelButton("Save", 71, Save)
-local delete = PanelButton("Delete", 134, function()
-    StaticPopup_Show("GEARRACK_DELETE", C_EquipmentSet.GetEquipmentSetInfo(chosen), nil, chosen)
-end)
+local equip = WindowButton("Equip", 14, function() GR.UseSet(Named()) end, "Put on the set with this name.")
+local save = WindowButton("Save", 110, Save,
+    "Save what you wear in the lit slots under this name: a new name makes a new set.")
+local delete = WindowButton("Delete", 206, function()
+    local id = Named()
+    StaticPopup_Show("GEARRACK_DELETE", C_EquipmentSet.GetEquipmentSetInfo(id), nil, id)
+end, "Delete the set with this name.")
 
--- A row: the set's icon and name, a tick when it is worn. Its tooltip names
--- what is missing (### GameTooltip:SetEquipmentSet); a drag puts it on an action bar.
-local function Row(i)
-    local r = rows[i]
-    if r then return r end
-    r = CreateFrame("Button", nil, panel)
-    r:SetSize(184, ROW - 2)
-    r:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -TOP - (i - 1) * ROW)
+-- The sets between the slot columns: icon and name, a tick when worn. Its tooltip
+-- names what is missing (### GameTooltip:SetEquipmentSet); a drag puts it on an
+-- action bar (### C_EquipmentSet.PickupEquipmentSet). The wheel scrolls a long list.
+local rows, offset = {}, 0
+for i = 1, VISIBLE do
+    local r = CreateFrame("Button", nil, window)
+    r:SetSize(WIDTH - 2 * (8 + SIZE + 8), ROW - 2)
+    r:SetPoint("TOPLEFT", window, "TOPLEFT", 8 + SIZE + 8, -32 - (i - 1) * ROW)
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(ROW - 2, ROW - 2)
     r.icon:SetPoint("LEFT", r, "LEFT", 0, 0)
@@ -117,80 +215,88 @@ local function Row(i)
     r:SetScript("OnClick", function() Choose(this.id) end)
     r:SetScript("OnDragStart", function() C_EquipmentSet.PickupEquipmentSet(this.id) end)
     r:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:SetOwner(this, "ANCHOR_TOP")
         GameTooltip:SetEquipmentSet(this.setName)
+        GameTooltip:AddLine("Click to show it, drag it onto an action bar.", 1, 1, 1)
         GameTooltip:Show()
     end)
     r:SetScript("OnLeave", function() GameTooltip:Hide() end)
     rows[i] = r
-    return r
 end
+window:EnableMouseWheel(true)
+window:SetScript("OnMouseWheel", function()
+    offset = math.max(0, math.min(offset - arg1, #GR.Sets() - VISIBLE))
+    Draw()
+end)
 
 Draw = function()
     local ids = GR.Sets()
     local known
-    for i, id in ipairs(ids) do
-        local r = Row(i)
-        local name, setIcon, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(id)
-        r.id, r.setName = id, name
-        r.icon:SetTexture(GR.Icon(setIcon))
-        r.text:SetText(name)
-        if isEquipped then r.worn:Show() else r.worn:Hide() end
-        if id == chosen then r.mark:Show(); known = true else r.mark:Hide() end
-        r:Show()
+    offset = math.max(0, math.min(offset, #ids - VISIBLE))
+    for i, r in ipairs(rows) do
+        local id = ids[offset + i]
+        if id then
+            local name, setIcon, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(id)
+            r.id, r.setName = id, name
+            r.icon:SetTexture(GR.Icon(setIcon))
+            r.text:SetText(name)
+            if isEquipped then r.worn:Show() else r.worn:Hide() end
+            if id == chosen then r.mark:Show() else r.mark:Hide() end
+            r:Show()
+        else
+            r:Hide()
+        end
     end
-    for i = #ids + 1, #rows do rows[i]:Hide() end
+    for _, id in ipairs(ids) do if id == chosen then known = true end end
     if not known then chosen = nil end
-    local y = -TOP - #ids * ROW - 8
-    box:ClearAllPoints()
-    box:SetPoint("TOPLEFT", panel, "TOPLEFT", 14, y)
-    hint:ClearAllPoints()
-    hint:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, y - 26)
-    for _, b in ipairs(buttons) do
-        b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", panel, "TOPLEFT", b.x, y - 52)
-    end
-    if chosen then equip:Enable(); delete:Enable() else equip:Disable(); delete:Disable() end
+    for _, b in ipairs(slots) do DrawSlot(b) end
+    local named = Named()
+    if named then equip:Enable(); delete:Enable() else equip:Disable(); delete:Disable() end
+    if (box:GetText() or "") ~= "" then save:Enable() else save:Disable() end
     iconButton.texture:SetTexture(GR.Icon(icon))
-    panel:SetHeight(TOP + #ids * ROW + 90)
 end
+box:SetScript("OnTextChanged", function() if window:IsShown() then Draw() end end)
 
 -- Redrawn once per frame of changes, only while it shows.
 local due
-local function Due() due = nil; if panel:IsShown() then Draw() end end
-panel:SetScript("OnEvent", function()
-    if not due then due = true; C_Timer.After(0, Due) end
+local function Due() due = nil; if window:IsShown() then Draw() end end
+window:SetScript("OnEvent", function()
+    if event == "PLAYER_ENTERING_WORLD" then
+        this:UnregisterEvent(event)
+        if C_EquipmentSet.GetNumEquipmentSets() == 0 then return end -- not read yet, or none: keep all
+        for name in pairs(db.ammo) do
+            if not C_EquipmentSet.GetEquipmentSetID(name) then db.ammo[name] = nil end
+        end
+    elseif not due then due = true; C_Timer.After(0, Due) end
 end)
-panel:SetScript("OnShow", function()
+window:SetScript("OnShow", function()
     for _, e in ipairs({ "EQUIPMENT_SETS_CHANGED", "EQUIPMENT_SWAP_FINISHED", "PLAYER_EQUIPMENT_CHANGED" }) do
         this:RegisterEvent(e)
     end
-    GR.Ticks(true)
-    Draw()
-    GR.AutoWatch() -- nothing changes by itself while the panel shows (K14)
+    -- The worn set is shown at opening; else the one shown last.
+    local ids = GR.Sets()
+    for _, id in ipairs(ids) do
+        if select(4, C_EquipmentSet.GetEquipmentSetInfo(id)) then chosen = id; break end
+    end
+    Choose(chosen)
+    GR.AutoWatch() -- nothing changes by itself while the window shows (K14)
 end)
-panel:SetScript("OnHide", function()
+window:SetScript("OnHide", function()
     this:UnregisterAllEvents()
-    GR.Ticks(false)
     GR.AutoWatch()
 end)
-function GR.PanelShown() return panel:IsShown() end
-
-function GR.OpenPanel()
-    if not PaperDollFrame:IsVisible() then ToggleCharacter("PaperDollFrame") end
-    panel:Show()
-end
-function GR.TogglePanel()
-    if panel:IsShown() then panel:Hide() else panel:Show() end
-end
+-- KP-64: the ammo of a set that is gone, cleared once at login.
+window:RegisterEvent("PLAYER_ENTERING_WORLD")
+function GR.WindowShown() return window:IsShown() end
+function GR.ToggleWindow() if window:IsShown() then window:Hide() else window:Show() end end
 
 -- The icon picker: the worn gear's icons first, then every spell and item icon
 -- (### GetMacroIcons / GetMacroItemIcons, basenames), read at its first opening.
 -- 64 buttons show a window of the list; the wheel and the slider move it.
 local COLUMNS, LINES, CELL = 8, 8, 30
-local picker = CreateFrame("Frame", nil, panel)
+local picker = CreateFrame("Frame", nil, window)
 picker:SetSize(COLUMNS * CELL + 28, LINES * CELL + 12)
-picker:SetPoint("TOPLEFT", panel, "TOPRIGHT", 2, 0)
+picker:SetPoint("TOPLEFT", window, "TOPRIGHT", 2, 0)
 picker:SetBackdrop({ bgFile = FLAT, edgeFile = FLAT, edgeSize = 1 })
 picker:SetBackdropColor(0.06, 0.06, 0.06, 0.95)
 picker:SetBackdropBorderColor(0, 0, 0)
@@ -198,7 +304,7 @@ picker:EnableMouse(true)
 picker:EnableMouseWheel(true)
 picker:Hide()
 
-local icons, cells, offset = nil, {}, 0
+local icons, cells, first = nil, {}, 0
 local slider = CreateFrame("Slider", nil, picker)
 slider:SetOrientation("VERTICAL")
 slider:SetWidth(12)
@@ -209,12 +315,12 @@ slider:SetValueStep(1)
 
 local function Cells()
     for i, cell in ipairs(cells) do
-        local name = icons[offset * COLUMNS + i]
+        local name = icons[first * COLUMNS + i]
         cell.icon = name
         if name then cell:SetNormalTexture(GR.Icon(name)); cell:Show() else cell:Hide() end
     end
 end
-slider:SetScript("OnValueChanged", function() offset = math.floor(this:GetValue() + 0.5); Cells() end)
+slider:SetScript("OnValueChanged", function() first = math.floor(this:GetValue() + 0.5); Cells() end)
 picker:SetScript("OnMouseWheel", function() slider:SetValue(slider:GetValue() - arg1) end)
 
 for i = 1, COLUMNS * LINES do

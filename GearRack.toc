@@ -10,6 +10,9 @@ Bars.lua
 Menu.lua
 Sheet.lua
 Sets.lua
+Queue.lua
+Trinkets.lua
+Minimap.lua
 Auto.lua
 Ready.lua
 Page.lua

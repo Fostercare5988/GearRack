@@ -1,5 +1,5 @@
 -- GearRack on the character window: a slot's menu on hover (K7), Alt+click
--- to put a slot on the gear bar (K9), and the ticks of the sets panel (K3).
+-- to put a slot on the gear bar (K9), and a button that opens Gear sets (K17).
 local _, GR = ...
 
 -- Menus open to the right, the weapons' downward, as GearRack 1.x opened them
@@ -7,7 +7,7 @@ local _, GR = ...
 local WAY = {}
 for slot = 1, 19 do WAY[slot] = slot >= 16 and slot <= 18 and "DOWN" or "RIGHT" end
 
-local sheet, ticks = {}, {}
+local sheet = {}
 for slot, name in ipairs(GR.SLOT_NAMES) do
     local b = _G["Character" .. name]
     sheet[slot] = b
@@ -29,39 +29,13 @@ hooksecurefunc("PaperDollItemSlotButton_OnEnter", function()
     if sheet[slot] == this then GR.OpenMenu(this, slot, WAY[slot]) end
 end)
 
--- K3: a tick on each slot while the sets panel shows; ticked slots are saved.
-function GR.Ticks(on)
-    for slot, b in ipairs(sheet) do
-        local t = ticks[slot]
-        if on and not t then
-            t = CreateFrame("CheckButton", nil, b, "UICheckButtonTemplate")
-            t:SetSize(18, 18)
-            t:SetPoint("TOPLEFT", b, "TOPLEFT", -4, 4)
-            t:SetFrameLevel(b:GetFrameLevel() + 2)
-            t:SetChecked(1)
-            ticks[slot] = t
-        end
-        if t then if on then t:Show() else t:Hide() end end
-    end
-end
-function GR.Ticked(slot) return ticks[slot] and ticks[slot]:GetChecked() and true or false end
--- A set's ticks: every slot but those it leaves out (### C_EquipmentSet.GetIgnoredSlots).
-function GR.SetTicks(ignored)
-    for slot = 1, 19 do
-        if ticks[slot] then ticks[slot]:SetChecked(1) end
-    end
-    for _, slot in ipairs(ignored or {}) do
-        if ticks[slot] then ticks[slot]:SetChecked(nil) end
-    end
-end
-
--- The panel's opener, at the model's top right.
+-- The Gear sets window's opener, at the model's top right.
 local opener = CreateFrame("Button", "GearRackSheetButton", PaperDollFrame)
 opener:SetSize(24, 24)
 opener:SetPoint("TOPRIGHT", CharacterModelFrame, "TOPRIGHT", -2, -2)
 opener:SetFrameLevel(CharacterModelFrame:GetFrameLevel() + 2)
-opener:SetNormalTexture("Interface\\Icons\\INV_Misc_Gear_01")
-opener:SetScript("OnClick", function() GR.TogglePanel() end)
+opener:SetNormalTexture(GR.MEDIA .. "GearRack-Icon")
+opener:SetScript("OnClick", function() GR.ToggleWindow() end)
 opener:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
     GameTooltip:SetText("Gear sets")

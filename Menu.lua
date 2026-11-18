@@ -16,7 +16,7 @@ menu:SetBackdropBorderColor(0, 0, 0)
 menu:Hide()
 
 local GOLD = { r = 1, g = 0.82, b = 0 } -- the worn set's edge
-local owner, slot, sets -- what the menu shows
+local owner, slot, sets, drawer -- what the menu shows
 local entries, list, found = {}, {}, {}
 
 -- A location code of GetInventoryItemsForSlot to the item's GUID (### C_EquipmentSet.GetItemLocations:
@@ -28,6 +28,7 @@ local function Locate(at)
         inBag.bagID, inBag.slotIndex = math.floor(at / 256) % 256, inside
         return C_Item.GetItemGUID(inBag), GetContainerItemCooldown(inBag.bagID, inside)
     end
+    if drawer then return end -- the drawer lists the bags only
     worn.equipmentSlotIndex = inside
     return C_Item.GetItemGUID(worn), GetInventoryItemCooldown("player", inside)
 end
@@ -41,7 +42,8 @@ end
 local function Better(a, b)
     if a.off or b.off then return b.off and not a.off end
     if a.quality ~= b.quality then return a.quality > b.quality end
-    return a.name < b.name
+    if a.name ~= b.name then return a.name < b.name end
+    return a.guid < b.guid -- two copies keep their order
 end
 
 -- The items for `s`: bags and the other slots; never the one worn there.
@@ -64,7 +66,7 @@ local function FillItems(s)
             e.start, e.duration, e.enable = start, duration, enable
         end
     end
-    if here then
+    if here and not drawer then
         n = n + 1
         local e = Entry(n)
         e.guid, e.off, e.set, e.worn, e.icon, e.enable = nil, true, nil, nil, nil, 0
@@ -90,6 +92,7 @@ local function Click()
     local e = this.entry
     if e.set then GR.UseSet(e.set)
     elseif e.off then GR.TakeOff(slot)
+    elseif drawer then GR.Choose(arg1 == "RightButton" and 14 or 13, e.guid) -- K21: left upper, right lower
     else GR.Choose(arg1 == "RightButton" and GR.OTHER[slot] or slot, e.guid) end
     GR.CloseMenu()
 end
@@ -177,19 +180,16 @@ end
 -- Redrawn while open only (BAG_UPDATE_DELAYED, the worn gear, the sets).
 local OPEN = { "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "EQUIPMENT_SETS_CHANGED", "EQUIPMENT_SWAP_FINISHED" }
 menu:SetScript("OnEvent", Refresh)
-local function Open(o, s, w)
+local function Open(o, s, w, d)
     if (menu:IsShown() and owner == o) or CursorHasItem() then return end
-    owner, slot, sets, way = o, s, s == nil, w
+    owner, slot, sets, way, drawer = o, s, s == nil, w, d
     Refresh()
     if menu:IsShown() then
         for _, e in ipairs(OPEN) do menu:RegisterEvent(e) end
     end
 end
 GR.OpenMenu = Open
-function GR.OpenSets(o)
-    local _, y = o:GetCenter()
-    Open(o, nil, (y or 0) < UIParent:GetHeight() / 2 and "UP" or "DOWN")
-end
+function GR.OpenSets(o, w) Open(o, nil, w) end
 
 function GR.CloseMenu()
     menu:UnregisterAllEvents()

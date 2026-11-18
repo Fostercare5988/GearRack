@@ -79,7 +79,7 @@ local function Snapshot()
     return before
 end
 local function Look()
-    if not db.auto or GR.PanelShown() then return end
+    if not db.auto or GR.WindowShown() then return end
     local name
     for _, row in ipairs(GR.Rows()) do
         if row.on and SetID(db.when[row.key]) then name = db.when[row.key]; break end
@@ -88,7 +88,7 @@ local function Look()
     current = name
     if name then
         db.before = db.before or Snapshot()
-        GR.UseSet(SetID(name))
+        GR.UseSet(SetID(name), nil, true)
     else -- the gear worn before; a slot then empty stays as it is
         for slot, guid in pairs(db.before) do
             if GR.Worn(slot) ~= guid and C_Item.IsItemGUIDInInventory(guid) then GR.Choose(slot, guid, true) end
@@ -138,11 +138,11 @@ local function Read(e)
     if changed or not e then Ask() end
 end
 
--- Only the events of rows in use, with the switch on and the panel closed.
+-- Only the events of rows in use, with the switch on and the Gear sets window closed.
 function GR.AutoWatch()
     events:UnregisterAllEvents()
     events:RegisterEvent("PLAYER_ENTERING_WORLD")
-    if not db.auto or GR.PanelShown() then return end
+    if not db.auto or GR.WindowShown() then return end
     for _, row in ipairs(GR.Rows()) do
         row.listens = nil
         if SetID(db.when[row.key]) then

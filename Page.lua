@@ -53,9 +53,16 @@ SettingsRegistrar:AddRegistrant(function()
     Settings.CreateCheckbox(category, Settings.RegisterAddOnSetting(category, "GearRack_readyAlert", "readyAlert", db,
         Settings.VarType.Boolean, "Ready alert", GR.DEFAULTS.readyAlert),
         "When a worn item you used is ready in 30 seconds, and when it is ready: a sound, on screen and in chat.")
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer("Sets"))
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer("Windows"))
     layout:AddInitializer(CreateSettingsButtonInitializer("Gear sets", "Open",
-        function() GR.OpenPanel() end, "Make, save and delete sets beside your character window.", true))
+        function() GR.ToggleWindow() end, "Make, save, equip and delete your sets.", true))
+    layout:AddInitializer(CreateSettingsButtonInitializer("Trinkets", "Open",
+        function() GR.OpenTrinkets(13) end, "The order your trinkets are worn in, and the automatic swap.", true))
+    local minimap = Settings.RegisterAddOnSetting(category, "GearRack_minimap", "minimap", db, Settings.VarType.Boolean,
+        "Minimap buttons", GR.DEFAULTS.minimap)
+    minimap:SetValueChangedCallback(GR.MinimapButtons)
+    Settings.CreateCheckbox(category, minimap,
+        "The gear opens Gear sets, the trinket opens Trinkets; right-click either for this page. Drag to move.")
     Settings.RegisterAddOnCategory(category)
 
     -- Automatic sets: the switch, then a set per situation, in the order they win.
@@ -65,7 +72,7 @@ SettingsRegistrar:AddRegistrant(function()
     switch:SetValueChangedCallback(GR.AutoWatch)
     local parent = Settings.CreateCheckbox(auto, switch,
         "Put on a set while something below is true, and the gear from before when it ends. "
-        .. "Higher rows win. Nothing changes while the sets panel is open.")
+        .. "Higher rows win. Nothing changes while the Gear sets window is open.")
     local function On() return db.auto end
     local function Choice(cat, tbl, key, label, tooltip)
         local setting = Settings.RegisterAddOnSetting(cat, "GearRack_" .. (tbl == db.when and "when_" or "target_") .. key,

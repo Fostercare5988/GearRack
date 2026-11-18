@@ -10,19 +10,25 @@ local db = GearRackDB
 
 -- The bars and the switches start before the page registers, so their
 -- defaults are written here; `when` and `target` are the pages' (Auto.lua).
-GR.DEFAULTS = { gearBar = "ACROSS", trinketBar = "DOWN", readyAlert = true, auto = false }
+GR.DEFAULTS = { gearBar = "ACROSS", trinketBar = "DOWN", readyAlert = true, auto = false, minimap = true }
 for key, value in pairs(GR.DEFAULTS) do
     if db[key] == nil then db[key] = value end
 end
 db.when, db.target, db.slots = db.when or {}, db.target or {}, db.slots or { 16, 17, 18 }
+db.ammo, db.trinkets, db.angles = db.ammo or {}, db.trinkets or {}, db.angles or {}
+db.queue = db.queue or {}
+for slot = 13, 14 do db.queue[slot] = db.queue[slot] or { on = false, list = {} } end
 -- KP-64: one sweep clears every saved key nothing owns.
-local OWNED = { gearBar = 1, trinketBar = 1, readyAlert = 1, auto = 1, when = 1, target = 1, slots = 1, before = 1 }
+local OWNED = { gearBar = 1, trinketBar = 1, readyAlert = 1, auto = 1, minimap = 1, when = 1, target = 1, slots = 1,
+    before = 1, ammo = 1, trinkets = 1, angles = 1, queue = 1 }
 for key in pairs(db) do
     if not OWNED[key] then db[key] = nil end
 end
 
 GR.WEAPON = { [16] = true, [17] = true, [18] = true } -- what changes in combat
 GR.OTHER = { [11] = 12, [12] = 11, [13] = 14, [14] = 13 } -- right-click: the other ring or trinket
+
+GR.MEDIA = "Interface\\AddOns\\GearRack\\media\\" -- GearRack-Icon: the purple gear of 1.x
 
 function GR.Print(text) DEFAULT_CHAT_FRAME:AddMessage("|cffff9e38GearRack|r: " .. text) end
 
@@ -83,14 +89,26 @@ local function Rest(id)
     end
 end
 
+-- K22: the set's ammo, which ClassicAPI's sets do not hold (slots 1-19), by item ID.
+-- UNVERIFIED: that EquipItemByName without dstSlot (the cursor path) equips ammo.
+function GR.AmmoID() return tonumber(string.match(GetInventoryItemLink("player", 0) or "", "item:(%d+)")) end
+local function Wear(id)
+    C_EquipmentSet.UseEquipmentSet(id)
+    local ammo = db.ammo[C_EquipmentSet.GetEquipmentSetInfo(id)]
+    if ammo and GR.AmmoID() ~= ammo and C_Item.GetItemCount(ammo) > 0 then C_Item.EquipItemByName(ammo) end
+end
+
 -- K2: in combat the weapons change at once and the rest when combat ends;
--- dead, all of it waits. `once`: a set for a target is not finished later.
-function GR.UseSet(id, once)
+-- dead, all of it waits. `once`: a set for a target, not finished later.
+-- A set worn by hand (not `once`, not a `situation`) stops the queues of the
+-- trinket slots it holds, as TrinketMenu's manual choices do.
+function GR.UseSet(id, once, situation)
     pending = nil
+    if not once and not situation then GR.QueueSet(id) end
     if UnitIsDeadOrGhost("player") then
         if not once then pending = id end
     else
-        C_EquipmentSet.UseEquipmentSet(id)
+        Wear(id)
         if not once and UnitAffectingCombat("player") and Rest(id) then
             pending = id
             GR.Print("The rest of the set follows when combat ends.")
@@ -103,7 +121,7 @@ local function Finish()
     if not pending or UnitIsDeadOrGhost("player") or UnitAffectingCombat("player") then return end
     local id = pending
     pending = nil
-    C_EquipmentSet.UseEquipmentSet(id)
+    Wear(id)
     Listen()
 end
 
@@ -133,8 +151,10 @@ end
 
 -- A choice by hand (`auto` nil) while a situation holds is kept for its end (K14).
 -- The same choice again, while it waits, cancels it.
+-- A trinket chosen by hand stops that slot's queue (K20).
 function GR.Choose(slot, guid, auto)
     if not auto and db.before then db.before[slot] = guid end
+    if not auto and db.queue[slot] then GR.QueueOff(slot) end
     if want[slot] == guid and not auto then
         want[slot] = nil
     else
@@ -157,6 +177,7 @@ events:SetScript("OnEvent", function()
         stale = true
     elseif event == "WEAR_EQUIPMENT_SET" then
         -- ClassicAPI's own handler swaps what it can (Util/EquipmentManager.lua).
+        GR.QueueSet(arg1)
         if UnitAffectingCombat("player") or UnitIsDeadOrGhost("player") then pending = arg1; Listen() end
     elseif event == "BAG_UPDATE_DELAYED" then
         for slot, guid in pairs(want) do
@@ -181,6 +202,10 @@ BINDING_NAME_GEARRACK_USE_BOTTOM_TRINKET_ITEM = "Use Trinket 2 (Lower slot)"
 
 SLASH_GEARRACK1 = "/gr"
 SlashCmdList.GEARRACK = function(msg)
-    local name = string.match(msg or "", "^%s*equip%s+(.-)%s*$")
-    if name then GearRack.EquipSet(name) else GR.OpenPage() end
+    msg = msg or ""
+    local name = string.match(msg, "^%s*equip%s+(.-)%s*$")
+    if name then GearRack.EquipSet(name)
+    elseif string.find(msg, "^%s*sets%s*$") then GR.ToggleWindow()
+    elseif string.find(msg, "^%s*trinkets%s*$") then GR.ToggleTrinkets(13)
+    else GR.OpenPage() end
 end

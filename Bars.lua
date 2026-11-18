@@ -6,7 +6,7 @@ local db = GearRackDB
 
 local SIZE, STEP = 36, 40
 local FLAT = "Interface\\Buttons\\WHITE8X8"
-local SETS_ICON = "Interface\\Icons\\INV_Misc_Gear_01" -- UNVERIFIED: the icon's name in the 1.12 files
+local SETS_ICON = GR.MEDIA .. "GearRack-Icon"
 local hidden = CreateFrame("Frame")
 hidden:Hide()
 
@@ -30,6 +30,8 @@ for slot, name in ipairs(GR.SLOT_NAMES) do
     local _, texture = GetInventorySlotInfo(name)
     empty[slot] = texture
 end
+empty[0] = select(2, GetInventorySlotInfo("AmmoSlot"))
+GR.EMPTY = empty
 
 -- A 1 px edge: a frame round the button that draws only its border.
 function GR.Edge(b)
@@ -57,9 +59,11 @@ end
 -- The tooltip beside the button, filled again each second only while it counts
 -- a cooldown (GameTooltip:SetInventoryItem returns hasItem, hasCooldown:
 -- PaperDollFrame.lua:733), and only while the pointer stays.
+-- The tooltip sits on the side away from the button's menu.
 local hovered, refill
+local TIP = { UP = "ANCHOR_BOTTOMRIGHT", DOWN = "ANCHOR_RIGHT", RIGHT = "ANCHOR_LEFT", LEFT = "ANCHOR_RIGHT" }
 local function Tip(b)
-    GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+    GameTooltip:SetOwner(b, TIP[b.way or "UP"])
     if b.slot then
         local hasItem, hasCooldown = GameTooltip:SetInventoryItem("player", b.slot)
         if not hasItem then GameTooltip:SetText(_G[string.upper(GR.SLOT_NAMES[b.slot])]) end
@@ -67,7 +71,7 @@ local function Tip(b)
     end
     GameTooltip:SetText("Gear sets")
     if b.wornSet then GameTooltip:AddLine(b.wornSet, 0, 1, 0) end
-    GameTooltip:AddLine("Click: the sets on your character window.", 1, 1, 1)
+    GameTooltip:AddLine("Click: the Gear sets window.", 1, 1, 1)
     GameTooltip:Show()
 end
 local function Refill()
@@ -83,23 +87,31 @@ end
 local function Way(b)
     local x, y = b:GetCenter()
     if not x then return "UP" end
-    if db[b.bar.key] == "DOWN" then return x < UIParent:GetWidth() / 2 and "RIGHT" or "LEFT" end
+    if db[b.bar.key] == "DOWN" and b.slot then return x < UIParent:GetWidth() / 2 and "RIGHT" or "LEFT" end
     return y < UIParent:GetHeight() / 2 and "UP" or "DOWN"
 end
 
+-- K21: the trinket bar opens the drawer, every carried trinket.
 local function OnEnter()
     hovered = this
+    this.way = Way(this)
     local counting = Tip(this)
     if counting and not refill then refill = C_Timer.NewTicker(1, Refill) end
-    if this.slot then GR.OpenMenu(this, this.slot, Way(this)) else GR.OpenSets(this) end
+    if not this.slot then GR.OpenSets(this, this.way)
+    else GR.OpenMenu(this, this.slot, this.way, this.bar.drawer) end
 end
 local function OnLeave()
     Unhover()
     GR.MenuLeave()
 end
+-- A trinket: right-click opens the Trinkets window, Alt-click turns its queue on or off.
 local function OnClick()
     this:SetChecked(nil)
-    if not this.slot then GR.OpenPanel()
+    local trinket = this.slot == 13 or this.slot == 14
+    if not this.slot then GR.ToggleWindow()
+    elseif trinket and arg1 == "RightButton" then GR.ToggleTrinkets(this.slot)
+    elseif trinket and IsAltKeyDown() then GR.QueueToggle(this.slot)
+    elseif arg1 == "RightButton" then return
     elseif IsShiftKeyDown() then
         if ChatFrameEditBox:IsVisible() then ChatFrameEditBox:Insert(GetInventoryItemLink("player", this.slot)) end
     else
@@ -123,7 +135,13 @@ local function Button(name, bar, slot)
     b.wait:SetSize(16, 16)
     b.wait:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
     b.wait:Hide()
-    b:RegisterForClicks("LeftButtonUp")
+    -- K20: a small gear while the slot's queue is on, grey while it holds.
+    b.queue = b.edge:CreateTexture(nil, "OVERLAY")
+    b.queue:SetSize(14, 14)
+    b.queue:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 1, 1)
+    b.queue:SetTexture(GR.MEDIA .. "GearRack-Icon")
+    b.queue:Hide()
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:SetScript("OnEnter", OnEnter)
     b:SetScript("OnLeave", OnLeave)
     b:SetScript("OnClick", OnClick)
@@ -139,6 +157,8 @@ local function Draw(b)
     if color then b.edge:SetBackdropBorderColor(color.r, color.g, color.b) else b.edge:SetBackdropBorderColor(0, 0, 0) end
     local guid = GR.want[slot]
     if guid then b.wait:SetTexture(C_Item.GetItemIcon(guid)); b.wait:Show() else b.wait:Hide() end
+    local queue = db.queue[slot] and GR.QueueState(slot)
+    if queue and queue ~= "off" then b.queue:SetDesaturated(queue == "hold"); b.queue:Show() else b.queue:Hide() end
     GR.Timing(b, GetInventoryItemCooldown("player", slot))
 end
 
@@ -152,7 +172,7 @@ end
 -- (### frame:SetDontSavePosition). x, y: the first button's place until then.
 local gear = { key = "gearBar", label = "Gear", x = 478, y = 233, bySlot = {},
     holder = CreateFrame("Frame", "GearRackGearBar", UIParent) }
-local trinket = { key = "trinketBar", label = "Trinkets", x = 431, y = 440,
+local trinket = { key = "trinketBar", label = "Trinkets", x = 431, y = 440, drawer = true,
     holder = CreateFrame("Frame", "GearRackTrinketBar", UIParent) }
 for _, bar in ipairs({ gear, trinket }) do
     bar.holder:SetMovable(true)
@@ -198,14 +218,18 @@ function GR.Layout()
     Layout(trinket)
 end
 
--- K9: a slot goes to the end of the gear bar, or off it.
+-- K9: a slot goes to the end of the gear bar, or off it. The list is made
+-- new each time: table.remove counts with Lua 5.0's stored size, `#` does
+-- not (KP-65), and the two together broke Claude's list on 2026-11-18.
 function GR.ToggleSlot(slot)
-    for i, s in ipairs(db.slots) do
-        if s == slot then table.remove(db.slots, i); GR.Layout(); return false end
+    local kept, found = {}, false
+    for _, s in ipairs(db.slots) do
+        if s == slot then found = true else kept[#kept + 1] = s end
     end
-    db.slots[#db.slots + 1] = slot
+    if not found then kept[#kept + 1] = slot end
+    db.slots = kept
     GR.Layout()
-    return true
+    return not found
 end
 
 -- The Sets button shows the worn set's icon; once per frame of changes.
