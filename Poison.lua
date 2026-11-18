@@ -44,10 +44,11 @@ local function Parts(b)
     p:SetAllPoints(b)
     p:SetFrameLevel(b:GetFrameLevel() + 3)
     p.icon = p:CreateTexture(nil, "OVERLAY")
-    p.icon:SetSize(16, 16)
+    p.icon:SetSize(21, 21)
     p.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
-    p.text = p:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    p.text:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
+    p.text = p:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+    p.text:SetFont("Fonts\\ARIALN.TTF", 14, "THICKOUTLINE") -- clearer over the icon (the user)
+    p.text:SetPoint("TOPLEFT", b, "TOPLEFT", 1, -1)
     b.poison = p
     return p
 end
