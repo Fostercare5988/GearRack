@@ -1,0 +1,4 @@
+<Bindings>
+    <Binding name="GEARRACK_USE_TOP_TRINKET_ITEM" header="GEARRACK">UseInventoryItem(13)</Binding>
+    <Binding name="GEARRACK_USE_BOTTOM_TRINKET_ITEM">UseInventoryItem(14)</Binding>
+</Bindings>

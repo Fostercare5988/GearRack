@@ -1,0 +1,15 @@
+## Interface: 11200
+## Title: |cffff9e38GearRack|r |cffffd6a8[Fostercare5988]|r
+## Notes: Gear sets, sets that put themselves on, and bars of the gear you wear
+## Author: Fostercare5988
+## Version: 2.0.0
+## SavedVariablesPerCharacter: GearRackDB
+## LoadSavedVariablesFirst: 1
+Core.lua
+Bars.lua
+Menu.lua
+Sheet.lua
+Sets.lua
+Auto.lua
+Ready.lua
+Page.lua
