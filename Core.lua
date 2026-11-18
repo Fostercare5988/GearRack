@@ -96,7 +96,7 @@ function GR.AmmoID() return tonumber(string.match(GetInventoryItemLink("player",
 local function Wear(id)
     C_EquipmentSet.UseEquipmentSet(id)
     local ammo = db.ammo[C_EquipmentSet.GetEquipmentSetInfo(id)]
-    if ammo and GR.AmmoID() ~= ammo and C_Item.GetItemCount(ammo) > 0 then C_Item.EquipItemByName(ammo) end
+    if ammo and ammo > 0 and GR.AmmoID() ~= ammo and C_Item.GetItemCount(ammo) > 0 then C_Item.EquipItemByName(ammo) end
 end
 
 -- K2: in combat the weapons change at once and the rest when combat ends;

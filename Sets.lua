@@ -161,7 +161,8 @@ local function Save()
     GR.SetsStale()
     C_EquipmentSet.ClearIgnoredSlotsForSave()
     if not id then return end
-    db.ammo[(C_EquipmentSet.GetEquipmentSetInfo(id))] = lit[0] and GR.AmmoID() or nil
+    -- 0: the ammo slot saved empty (a thrown weapon needs none); it stays lit.
+    db.ammo[(C_EquipmentSet.GetEquipmentSetInfo(id))] = lit[0] and (GR.AmmoID() or 0) or nil
     Choose(id)
 end
 
@@ -228,7 +229,8 @@ hint:SetJustifyH("LEFT")
 hint:SetText("The slots show what you wear. Lit slots go into the set when you press Save; "
     .. "click a slot to leave it out (a red cross) or take it in again.")
 
--- The sets between the slot columns: icon and name, a tick when worn. Its tooltip
+-- The sets between the slot columns: icon and name. No worn tick: the Sets
+-- button names the set, and a tick on a weapons-only set annoyed. Its tooltip
 -- names what is missing (### GameTooltip:SetEquipmentSet); a drag puts it on an
 -- action bar (### C_EquipmentSet.PickupEquipmentSet). The wheel scrolls a long list.
 local rows, offset = {}, 0
@@ -241,10 +243,6 @@ for i = 1, VISIBLE do
     r.icon:SetPoint("LEFT", r, "LEFT", 0, 0)
     r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     r.text:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
-    r.worn = r:CreateTexture(nil, "OVERLAY")
-    r.worn:SetSize(16, 16)
-    r.worn:SetPoint("RIGHT", r, "RIGHT", -2, 0)
-    r.worn:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
     r.mark = r:CreateTexture(nil, "BACKGROUND")
     r.mark:SetAllPoints(r)
     r.mark:SetTexture(FLAT)
@@ -275,12 +273,11 @@ Draw = function()
     for i, r in ipairs(rows) do
         local id = ids[offset + i]
         if id then
-            local name, setIcon, _, isEquipped = C_EquipmentSet.GetEquipmentSetInfo(id)
+            local name, setIcon = C_EquipmentSet.GetEquipmentSetInfo(id)
             r.id, r.setName = id, name
             r.icon:SetTexture(GR.Icon(setIcon))
             r.text:SetText(name)
             if db.hidden[name] then r.text:SetTextColor(0.55, 0.55, 0.55) else r.text:SetTextColor(1, 1, 1) end
-            if isEquipped then r.worn:Show() else r.worn:Hide() end
             if id == chosen then r.mark:Show() else r.mark:Hide() end
             r:Show()
         else
