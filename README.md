@@ -6,12 +6,14 @@ the gear you wear. For World of Warcraft 1.12.1 with ClassicAPI.
 ## What it does
 
 - **Gear sets window.** Open it with the purple gear on the minimap, the Sets
-  button on the gear bar, the gear button on your character window, or
-  `/gr sets`. It shows your 20 slots (with the shirt and the ammo) around your
+  button on the gear bar, or `/gr sets`. It shows your 20 slots (with the shirt and the ammo) around your
   sets. A lit slot is saved in the set; click a slot to leave it out or take
   it in, hover it to put another item in it. Type a name, pick an icon and
-  press Save; Equip and Delete work on the set with that name. The set you
-  wear is shown when the window opens. A set remembers the exact copy of each
+  press Save; Click a set in the list to put it on (its slots then show
+  its items); Equip and Delete work on the set whose name is in the box. New
+  starts a set with every slot lit. "Hide from the Sets menu" keeps a set out
+  of the bar's menu (hold Alt to see it). The set you last put on is shown
+  when the window opens, and its name sits under the Sets button. A set remembers the exact copy of each
   item, so two identical daggers with different poisons are two items, and
   it remembers your ammo. Drag a set from the list onto an action bar to make
   a set button. Item tooltips name the sets an item is in.
@@ -22,8 +24,8 @@ the gear you wear. For World of Warcraft 1.12.1 with ClassicAPI.
 - **The gear bar and the trinket bar.** Hover a gear button for the other
   items that fit that slot; click one to put it on (right-click: the other
   ring or trinket slot). The empty button takes the item off. Hover a trinket
-  button for every trinket in your bags: left-click puts it in the upper slot,
-  right-click in the lower. Click a bar button to use the item, Shift-click
+  (on the bar, the character window or Gear sets) for every trinket in your
+  bags: left-click puts it in the upper slot, right-click in the lower. Click a bar button to use the item, Shift-click
   to link it. Alt-click a slot on your character window to add it to the gear
   bar or take it off. Hold Ctrl and Shift and drag a bar to move it.
 - **Trinkets window and automatic swap.** Open it with the trinket on the

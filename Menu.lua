@@ -87,6 +87,7 @@ local function FillSets()
             n = n + 1
             local e = Entry(n)
             e.guid, e.off, e.set, e.name, e.icon, e.worn, e.enable = nil, nil, id, name, GR.Icon(icon), id == current, 0
+            e.quality, e.start, e.duration = nil, nil, nil -- the entry may have been an item's
         end
     end
     return n
@@ -186,9 +187,11 @@ end
 -- Redrawn while open only (BAG_UPDATE_DELAYED, the worn gear, the sets).
 local OPEN = { "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "EQUIPMENT_SETS_CHANGED", "EQUIPMENT_SWAP_FINISHED" }
 menu:SetScript("OnEvent", Refresh)
+-- A trinket slot opens the drawer wherever it is hovered (the bar, the
+-- character window, Gear sets): left-click upper, right-click lower.
 local function Open(o, s, w, d)
     if (menu:IsShown() and owner == o) or CursorHasItem() then return end
-    owner, slot, sets, way, drawer = o, s, s == nil, w, d
+    owner, slot, sets, way, drawer = o, s, s == nil, w, d or s == 13 or s == 14
     Refresh()
     if menu:IsShown() then
         for _, e in ipairs(OPEN) do menu:RegisterEvent(e) end

@@ -1,5 +1,6 @@
 -- GearRack on the character window: a slot's menu on hover (K7), Alt+click
--- to put a slot on the gear bar (K9), and a button that opens Gear sets (K17).
+-- to put a slot on the gear bar (K9). No button of ours on the window: it hid
+-- the arcane resistance (second play); Gear sets opens from the bar and minimap.
 local _, GR = ...
 
 -- Menus open to the right, the weapons' downward, as GearRack 1.x opened them
@@ -28,16 +29,3 @@ hooksecurefunc("PaperDollItemSlotButton_OnEnter", function()
     local slot = this:GetID()
     if sheet[slot] == this then GR.OpenMenu(this, slot, WAY[slot]) end
 end)
-
--- The Gear sets window's opener, at the model's top right.
-local opener = CreateFrame("Button", "GearRackSheetButton", PaperDollFrame)
-opener:SetSize(24, 24)
-opener:SetPoint("TOPRIGHT", CharacterModelFrame, "TOPRIGHT", -2, -2)
-opener:SetFrameLevel(CharacterModelFrame:GetFrameLevel() + 2)
-opener:SetNormalTexture(GR.MEDIA .. "GearRack-Icon")
-opener:SetScript("OnClick", function() GR.ToggleWindow() end)
-opener:SetScript("OnEnter", function()
-    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-    GameTooltip:SetText("Gear sets")
-end)
-opener:SetScript("OnLeave", function() GameTooltip:Hide() end)

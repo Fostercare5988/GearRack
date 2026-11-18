@@ -158,6 +158,7 @@ local function Save()
     end
     local id = C_EquipmentSet.GetEquipmentSetID(name)
     if id then C_EquipmentSet.SaveEquipmentSet(id, icon) else id = C_EquipmentSet.CreateEquipmentSet(name, icon) end
+    GR.SetsStale()
     C_EquipmentSet.ClearIgnoredSlotsForSave()
     if not id then return end
     db.ammo[(C_EquipmentSet.GetEquipmentSetInfo(id))] = lit[0] and GR.AmmoID() or nil
@@ -173,6 +174,7 @@ StaticPopupDialogs.GEARRACK_DELETE = {
         db.ammo[name], db.hidden[name] = nil, nil
         if db.current == name then db.current = nil end
         C_EquipmentSet.DeleteEquipmentSet(id)
+        GR.SetsStale()
     end,
 }
 
@@ -248,12 +250,13 @@ for i = 1, VISIBLE do
     r.mark:SetTexture(FLAT)
     r.mark:SetVertexColor(1, 0.82, 0, 0.2)
     r:RegisterForDrag("LeftButton")
-    r:SetScript("OnClick", function() Choose(this.id) end)
+    -- A click puts the set on and shows it, as 1.x's set list did.
+    r:SetScript("OnClick", function() Choose(this.id); GR.UseSet(this.id) end)
     r:SetScript("OnDragStart", function() C_EquipmentSet.PickupEquipmentSet(this.id) end)
     r:SetScript("OnEnter", function()
         GameTooltip:SetOwner(this, "ANCHOR_TOP")
         GameTooltip:SetEquipmentSet(this.setName)
-        GameTooltip:AddLine("Click to show it, drag it onto an action bar.", 1, 1, 1)
+        GameTooltip:AddLine("Click to put it on. Drag it onto an action bar.", 1, 1, 1)
         GameTooltip:Show()
     end)
     r:SetScript("OnLeave", function() GameTooltip:Hide() end)

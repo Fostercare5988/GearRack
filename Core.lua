@@ -48,6 +48,7 @@ end
 -- The sets by name, read again after EQUIPMENT_SETS_CHANGED.
 local sorted, names, stale = {}, {}, true
 local function ByName(a, b) return names[a] < names[b] end
+function GR.SetsStale() stale = true end -- after our own change, before its event
 function GR.Sets()
     if stale then
         stale = false
